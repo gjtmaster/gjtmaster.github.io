@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://gjtmaster.github.io/2019/02/15/Flink1.7.1%E4%B8%8EKafka0.11.0.1/</loc>
-    <lastmod>2019-07-26</lastmod>
+    <loc>https://gjtmaster.github.io/2018/11/15/Flink1.7.1%E4%B8%8EKafka0.11.0.1/</loc>
+    <lastmod>2019-07-27</lastmod>
+  </url>  <url>
+    <loc>https://gjtmaster.github.io/2018/10/15/Flink%20On%20Yan%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2/</loc>
+    <lastmod>2019-07-27</lastmod>
   </url>  <url>
     <loc>https://gjtmaster.github.io/2018/08/17/JsonSchema%E5%85%A8%E5%A5%97%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88/</loc>
     <lastmod>2019-07-26</lastmod>
