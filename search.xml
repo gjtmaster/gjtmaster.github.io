@@ -22,9 +22,9 @@
             
             <tag> Flink </tag>
             
-            <tag> 实时计算 </tag>
-            
             <tag> Kafka </tag>
+            
+            <tag> 实时计算 </tag>
             
             <tag> 消息中间件 </tag>
             
@@ -53,9 +53,9 @@
             
             <tag> Flink </tag>
             
-            <tag> Yarn </tag>
-            
             <tag> 实时计算 </tag>
+            
+            <tag> Yarn </tag>
             
         </tags>
       
