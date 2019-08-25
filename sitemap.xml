@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://gjtmaster.github.io/2018/11/10/Flink%20on%20Yarn%20HA/</loc>
+    
+    <lastmod>2019-08-25T08:49:04.146Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://gjtmaster.github.io/2018/09/13/%E5%88%A9%E7%94%A8ogg%E5%AE%9E%E7%8E%B0oracle%E5%88%B0kafka%E7%9A%84%E5%A2%9E%E9%87%8F%E6%95%B0%E6%8D%AE%E5%AE%9E%E6%97%B6%E5%90%8C%E6%AD%A5/</loc>
     
     <lastmod>2019-08-18T05:45:34.748Z</lastmod>
