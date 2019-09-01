@@ -2,6 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
+    <loc>https://gjtmaster.github.io/2018/09/01/Kafka0.11%E7%89%88%E6%9C%AC+Zookeeper-3.4.10%E9%9B%86%E7%BE%A4%E9%83%A8%E7%BD%B2/</loc>
+    
+    <lastmod>2019-09-01T05:03:10.556Z</lastmod>
+    
+  </url>
+  
+  <url>
     <loc>https://gjtmaster.github.io/2018/11/10/Flink%20on%20Yarn%20HA/</loc>
     
     <lastmod>2019-08-25T08:49:04.146Z</lastmod>
