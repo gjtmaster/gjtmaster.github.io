@@ -1,0 +1,100 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.9.0"><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="心有多大，舞台就有多大！"><title>kafka集群基于吞吐量指标进行性能调优 | Joker's Blog</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/normalize/8.0.1/normalize.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//lib.baomitu.com/jquery/3.4.0/jquery.min.js"></script><link rel="icon" mask sizes="any" href="/favicon.ico"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><link rel="alternate" type="application/atom+xml" href="/atom.xml"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">kafka集群基于吞吐量指标进行性能调优</h1><a id="logo" href="/.">Joker's Blog</a><p class="description">高金涛</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/history/"><i class="fa fa-history"> 历史</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">kafka集群基于吞吐量指标进行性能调优</h1><div class="post-meta">Sep 9, 2018<span> | </span><span class="category"><a href="/categories/消息中间件/">消息中间件</a></span></div><div class="clear"><div class="toc-article" id="toc"><div class="toc-title">文章目录</div><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#概要"><span class="toc-number">1.</span> <span class="toc-text">概要</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#kafka-基础设施优化"><span class="toc-number">2.</span> <span class="toc-text">kafka 基础设施优化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#kafka-JVM设置"><span class="toc-number">3.</span> <span class="toc-text">kafka JVM设置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#文件调优"><span class="toc-number">4.</span> <span class="toc-text">文件调优</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#吞吐量"><span class="toc-number">5.</span> <span class="toc-text">吞吐量</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#悖论存在（分区数越多，TPS越高）"><span class="toc-number">6.</span> <span class="toc-text">悖论存在（分区数越多，TPS越高）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#总结"><span class="toc-number">7.</span> <span class="toc-text">总结</span></a></li></ol></div></div><div class="post-content"><h2 id="概要"><a href="#概要" class="headerlink" title="概要"></a>概要</h2><ul>
+<li>性能<ul>
+<li>吞吐量：broker或者clients应用程序每秒能处理多少字节（或消息）</li>
+<li>延时：通常指Producer发送到broker端持久化保存消息之间的时间间隔。</li>
+</ul>
+</li>
+<li>可用性：系统和组件正常运行的概率或时间比率，业界一般N个9来量化可用性，比如年度4个9表示53分钟（365* 24 * 60 * 0.01%=53分钟）</li>
+<li>持久性：已提交的消息需要被持久化到Broker端底层的文件系统的物理日志而不能丢失。</li>
+</ul>
+<h2 id="kafka-基础设施优化"><a href="#kafka-基础设施优化" class="headerlink" title="kafka 基础设施优化"></a>kafka 基础设施优化</h2><ul>
+<li><p>磁盘容量：首先考虑的是所需保存的消息所占用的总磁盘容量和每个broker所能提供的磁盘空间。如果Kafka集群需要保留 10TB数据，单个broker能存储 2TB，那么我们需要的最小Kafka集群大小5 个broker。此外，如果启用副本参数，则对应的存储空间需至少增加一倍（取决于副本参数）。这意味着对应的Kafka集群至少需要 10 个broker。</p>
+</li>
+<li><p>文件系统在文件被访问、创建、修改等的时候会记录文件的一些时间戳，比如：文件创建时间（ctime）、最近一次修改时间（mtime）和最近一次访问时间（atime）。默认情况下，atime的更新会有一次读操作，这会产生大量的磁盘读写，然而atime</p>
+<figure class="highlight ebnf"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attribute">mount -o noatime</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>绝大多数运行在Linux上的软件都是基于EXT4构建和测试的，因此兼容性上EXT4要优于其他文件系统。</p>
+</li>
+<li><p>作为高性能的64位日志文件系统（journaling file system），XFS表现出高性能，高伸缩性，特别适应于生产服务器，特别是大文件（30+GB）操作。很多存储类的应用都适合选择XFS作为底层文件系统。</p>
+</li>
+<li><p>计算机的内存分为虚拟内存和物理内存。物理内存是真实的内存，虚拟内存是用磁盘来代替内存。并通过swap机制实现磁盘到物理内存的加载和替换,这里面用到的磁盘我们称为swap磁盘。在写文件的时候，Linux首先将数据写入没有被使用的内存中，这些内存被叫做内存页（page cache）。然后读的时候，Linux会优先从page cache中查找，如果找不到就会从硬盘中查找。当物理内存使用达到一定的比例后，Linux就会使用进行swap，使用磁盘作为虚拟内存。通过cat /proc/sys/vm/swappiness可以看到swap参数。这个参数表示虚拟内存中swap磁盘占了多少百分比。0表示最大限度的使用内存，100表示尽量使用swap磁盘。系统默认的参数是60，当物理内存使用率达到40%，就会频繁进行swap，影响系统性能，推荐将vm.swappiness 设置为较低的值1。最终我设置为10，因为我们的机器的内存还是比较小的，只有40G，设置的太小，可能会影响到虚拟内存的使用吧。</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">临时修改：sudo sysctl vm.<span class="attribute">swappiness</span>=N</span><br><span class="line">永久修改（/etc/sysctl.conf）：vm.<span class="attribute">swappiness</span>=N</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h2 id="kafka-JVM设置"><a href="#kafka-JVM设置" class="headerlink" title="kafka JVM设置"></a>kafka JVM设置</h2><ul>
+<li><p>PermGen space : 全称是Permanent Generation  space，是指内存的永久保存区域，为什么会发生内存溢出？这一部分用于存放Class和Meta的信息, Class在被 Load的时候被放入PermGen space区域，它和存放Instance的Heap区域不同,所以如果你的APP会LOAD很多CLASS的话,就很可能出现PermGen space错误。</p>
+</li>
+<li><p>G1算法将堆划分为若干个区域（Region），它仍然属于分代收集器。不过，这些区域的一部分包含新生代，新生代的垃圾收集依然采用暂停所有应用线程的方式，将存活对象拷贝到老年代或者Survivor空间。老年代也分成很多区域，G1收集器通过将对象从一个区域复制到另外一个区域，完成了清理工作。这就意味着，在正常的处理过程中，G1完成了堆的压缩（至少是部分堆的压缩），这样也就不会有cms内存碎片问题的存在了。</p>
+</li>
+<li><p>在G1中，还有一种特殊的区域，叫Humongous区域。 如果一个对象占用的空间超过了分区容量50%以上，G1收集器就认为这是一个巨型对象。这些巨型对象，默认直接会被分配在年老代，但是如果它是一个短期存在的巨型对象，就会对垃圾收集器造成负面影响。为了解决这个问题，G1划分了一个Humongous区，它用来专门存放巨型对象。如果一个H区装不下一个巨型对象，那么G1会寻找连续的H分区来存储。为了能找到连续的H区，有时候不得不启动Full GC。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/12/3/1677483bb9496fd9?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt="img"></p>
+<p>​</p>
+</li>
+<li><p>G1采用内存分区(Region)的思路，将内存划分为一个个相等大小的内存分区，回收时则以分区为单位进行回收，存活的对象复制到另一个空闲分区中。由于都是以相等大小的分区为单位进行操作，因此G1天然就是一种压缩方案(局部压缩)；</p>
+</li>
+<li><p>G1虽然也是分代收集器，但整个内存分区不存在物理上的年轻代与老年代的区别，也不需要完全独立的survivor(to space)堆做复制准备。G1只有逻辑上的分代概念，或者说每个分区都可能随G1的运行在不同代之间前后切换；</p>
+</li>
+<li><p>G1的收集都是STW的，但年轻代和老年代的收集界限比较模糊，采用了混合(mixed)收集的方式。即每次收集既可能只收集年轻代分区(年轻代收集)，也可能在收集年轻代的同时，包含部分老年代分区(混合收集)，这样即使堆内存很大时，也可以限制收集范围，从而降低停顿。</p>
+</li>
+<li><p>堆内存中一个Region的大小可以通过-XX:G1HeapRegionSize参数指定，大小区间只能是1M、2M、4M、8M、16M和32M，总之是2的幂次方，如果G1HeapRegionSize为默认值，则在堆初始化时计算Region的实践大小，默认把堆内存按照2048份均分，最后得到一个合理的大小。</p>
+</li>
+<li><p>JVM 8 metaSpace 诞生了: 不过元空间与永久代之间最大的区别在于：元空间并不在虚拟机中，而是使用本地内存。因此，默认情况下，元空间的大小仅受本地内存限制，但可以通过以下参数来指定元空间的大小：-XX:MetaspaceSize，初始空间大小，达到该值就会触发垃圾收集进行类型卸载，同时GC会对该值进行调整：如果释放了大量的空间，就适当降低该值；如果释放了很少的空间，那么在不超过MaxMetaspaceSize时，适当提高该值。</p>
+</li>
+<li><p>-XX:MinMetaspaceFreeRatio，在GC之后，最小的Metaspace剩余空间容量的百分比，减少为分配空间所导致的垃圾收集-XX:MaxMetaspaceFreeRatio，在GC之后，最大的Metaspace剩余空间容量的百分比，减少为释放空间所导致的垃圾收集</p>
+</li>
+<li><p>XX:MaxGCPauseMillis=n : 设置最大GC停顿时间(GC pause time)指标(target). 这是一个软性指标(soft goal)， JVM 会尽量去达成这个目标。</p>
+</li>
+<li><p>InitiatingHeapOccupancyPercent： 整个堆栈使用达到百分之多少的时候，启动GC周期. 基于整个堆，不仅仅是其中的某个代的占用情况，G1根据这个值来判断是否要触发GC周期, 0表示一直都在GC，默认值是45（即45%慢了，或者说占用了)</p>
+<p>   -XX:G1NewSizePercent    新生代最小值，默认值5%</p>
+</li>
+<li><p>-XX:G1MaxNewSizePercent 新生代最大值，默认值60%</p>
+</li>
+<li><p>MetaspaceSize: 这个JVM参数是指Metaspace扩容时触发FullGC的初始化阈值，也是最小的阈值。</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># export JAVA_HOME=/usr/java/jdk1.8.0_51</span></span><br><span class="line"><span class="comment"># export KAFKA_HEAP_OPTS="</span></span><br><span class="line">-Xmx6g -Xms6g -XX:<span class="attribute">MetaspaceSize</span>=128m </span><br><span class="line">-XX:<span class="attribute">MaxMetaspaceSize</span>=128m -XX:+UseG1GC -XX:<span class="attribute">MaxGCPauseMillis</span>=20</span><br><span class="line">-XX:<span class="attribute">InitiatingHeapOccupancyPercent</span>=35 -XX:+<span class="attribute">G1HeapRegionSize</span>=16M</span><br><span class="line">-XX:<span class="attribute">MinMetaspaceFreeRatio</span>=50 <span class="string">"</span></span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h2 id="文件调优"><a href="#文件调优" class="headerlink" title="文件调优"></a>文件调优</h2><ul>
+<li><p>若出现”too many files open”错误时，就需要为Broker所在的机器调优最大文件部署符上限。文件句柄个数计算方法如下：</p>
+<figure class="highlight lsl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">broker上可能最大分区数*（每个分区平均数据量/平均的日志段大小+<span class="number">3</span>）其中<span class="number">3</span> 表示索引文件个数，</span><br><span class="line">假设<span class="number">20</span>个分区，分割分区总数据量为<span class="number">100</span>GB，每一个日志段大小是<span class="number">1</span>GB，那么这台机器最大文件部署符大小应该是：</span><br><span class="line">            <span class="number">20</span>*（<span class="number">100</span>/<span class="number">1</span>+<span class="number">3</span>）=<span class="number">2060</span></span><br><span class="line">因此该参数一定要设置足够大。比如<span class="number">100000</span></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>若出现”java.lang.OutOfMemoryError:Map failed的严重错误，主要原因是大量创建topic将极大消耗操作系统内存，用户可以适当调整vm.max.map.count参数，具体方法如下：</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/sbin/sysctl -w vm<span class="selector-class">.max_map_count</span> = N ，该参数默认值是<span class="number">65535</span>，可以考虑线上环境设置更大的值。</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h2 id="吞吐量"><a href="#吞吐量" class="headerlink" title="吞吐量"></a>吞吐量</h2><p>Broker端；</p>
+<ul>
+<li>适当增加num.replica.fetchers，但不要超过CPU核数，该值控制了broker端follower副本从leader副本处获取消息的最大线程数。默认值是1，表明follower副本只使用一个线程实时拉取leader处的最新消息。对于设置了acks=all的producer而言，主要延时可能耽误在follower与leader同步过程，所以增加该值可以缩短同步的时间，从而间接的提升Producer端的TPS。</li>
+<li>调优GC避免经常性的Full GC。老版本过渡依赖Zookeeper来表征Consumer还活着，若GC时间过长，会导致Zookeeper会话过期，kafka会立即对group进行rebalance。新版本上已经弃用了对Zookeeper的依赖。</li>
+</ul>
+<p>Producer端：</p>
+<ul>
+<li>适当增加batch.size，比如100-512KB。</li>
+<li><a href="https://link.juejin.im?target=http%3A%2F%2Fxn--linger-2e4j090brvo308i.ms" target="_blank" rel="noopener">适当增加linger.ms</a>，比如10-100毫秒Producer端是批量发送消息的，更大的batch size可以令更多的消息封装进同一个请求，故发送给broker端的总请求数就会减少，此举可以减轻Producer的负载，也降低了broker端的CPU请求处理开销。而更大的linger.ms使producer等待更长的时间才发送消息，这样就能够缓存更多的消息填满batch，从而从整体上提升TPS。但是延时肯定增加了。</li>
+<li>设置压缩类型compression.type=lz4，目前支持的压缩方式有：GZIP，Snappy，LZ4，在CPU资源丰富的情况下compression.type=lz4的效果是最好的。</li>
+<li>acks=0或1</li>
+<li>retries=0</li>
+<li>若多线程共享Produer或分区数很多时，增加buffer.memory。因为每一个分区都会占用一个batch.size。</li>
+</ul>
+<p>consumer端</p>
+<ul>
+<li>采用多Consumer实例，共同消费多分区数据，这些实例共享相同的group.id</li>
+<li>增加fetch.min.bytes，比如10000，表征每次leader副本所在的broker所返回的最小数据量来间接影响TPS,通过增加该值，Kafka会为每一个FETCH请求的response填入更多的数据。</li>
+</ul>
+<h2 id="悖论存在（分区数越多，TPS越高）"><a href="#悖论存在（分区数越多，TPS越高）" class="headerlink" title="悖论存在（分区数越多，TPS越高）"></a>悖论存在（分区数越多，TPS越高）</h2><p><img src="https://user-gold-cdn.xitu.io/2018/12/3/16774b2833e5a82e?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt="img"></p>
+<ul>
+<li>Kafka基本的并行单元就是分区，producer在设计时实现了能够同时向多个分区发送消息，从而这些消息最终写入到多个broker上，最终可以被多个consumer同时消费。通常来说，分区数越多，TPS越高</li>
+<li>分区数越多，占用的缓冲区越多，因为缓冲区是以分区为粒度的，所以Server/clients端将占用更多的内存。</li>
+<li>每一个分区在底层文件系统中都有专属目录，除了3个索引文件外还保存日志段文件，会占用大量的文件句柄。</li>
+<li>每一个分区都有若干个副本保存在不同的broker上，当broker挂掉后，因为需要Controller进行处理leader变更请求，该处理线程是单线程，疯了吧，亚历山大。</li>
+</ul>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>num.replica.fetchers倒是一个新颖的选手，可以好好试试，acks重点关注，其他都中规中矩。</p>
+</div><div><ul class="post-copyright"><li class="post-copyright-author"><strong>本文作者：</strong>gaojintao999@163.com</li><li class="post-copyright-link"><strong>本文链接：</strong><a href="/2018/09/09/kafka集群基于吞吐量指标进行性能调优/">https://gjtmaster.github.io/2018/09/09/kafka集群基于吞吐量指标进行性能调优/</a></li><li class="post-copyright-license"><strong>版权声明：</strong>The author owns the copyright, please indicate the source reproduced.</li></ul></div><br><div class="tags"><a href="/tags/Kafka/">Kafka</a><a href="/tags/消息中间件/">消息中间件</a></div><div class="post-nav"><a class="pre" href="/2018/09/10/kafka集群基于延时指标进行性能调优/">kafka集群基于延时指标进行性能调优</a><a class="next" href="/2018/09/07/kafka集群基于可用性指标进行性能调优/">kafka集群基于可用性指标进行性能调优</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><div class="search-form"><input id="local-search-input" placeholder="Search" type="text" name="q" results="0"><div id="local-search-result"></div></div></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/JVM/">JVM</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/实时计算框架/">实时计算框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据存储格式/">数据存储格式</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据库/">数据库</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据的导入导出/">数据的导入导出</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/日志框架/">日志框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/消息中间件/">消息中间件</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/Flink/" style="font-size: 15px;">Flink</a> <a href="/tags/实时计算/" style="font-size: 15px;">实时计算</a> <a href="/tags/Yarn/" style="font-size: 15px;">Yarn</a> <a href="/tags/Flink-on-Yarn/" style="font-size: 15px;">Flink on Yarn</a> <a href="/tags/Oracle/" style="font-size: 15px;">Oracle</a> <a href="/tags/FlinkSQL/" style="font-size: 15px;">FlinkSQL</a> <a href="/tags/Kafka/" style="font-size: 15px;">Kafka</a> <a href="/tags/消息中间件/" style="font-size: 15px;">消息中间件</a> <a href="/tags/JVM/" style="font-size: 15px;">JVM</a> <a href="/tags/内存回收/" style="font-size: 15px;">内存回收</a> <a href="/tags/Json/" style="font-size: 15px;">Json</a> <a href="/tags/Logback/" style="font-size: 15px;">Logback</a> <a href="/tags/ogg/" style="font-size: 15px;">ogg</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2019/09/17/Flink 进阶：Time 深度解析/">Flink 进阶：Time 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/09/16/Flink 进阶：Runtime 核心机制剖析/">Flink 进阶：Runtime 核心机制剖析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink1.7.1与Kafka0.11.0.1/">Flink1.7.1与Kafka0.11.0.1</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/10/Flink on Yarn HA/">Flink On Yarn HA</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/10/15/Flink On Yan集群部署/">Flink On Yarn集群部署</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/10/13/Flink使用Logback作为日志框架的相关配置/">Flink使用Logback作为日志框架的相关配置</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/18/FlinkSQL深度解析/">Flink SQL 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/13/利用ogg实现oracle到kafka的增量数据实时同步/">利用ogg实现oracle到kafka的增量数据实时同步</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/10/kafka集群基于延时指标进行性能调优/">kafka集群基于延时指标进行性能调优</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/09/kafka集群基于吞吐量指标进行性能调优/">kafka集群基于吞吐量指标进行性能调优</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://matt33.com/" title="Matt's Blog" target="_blank">Matt's Blog</a><ul></ul><a href="https://www.haomwei.com/technology/maupassant-hexo.html" title="Maupassant's usage" target="_blank">Maupassant's usage</a><ul></ul><a href="https://www.jianshu.com/p/f4332764e8bd" title="hexo's usage" target="_blank">hexo's usage</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2019 <a href="/." rel="nofollow">Joker's Blog.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css"><script type="text/javascript" src="/js/search.js?v=0.0.0"></script><script>var search_path = 'search.xml';
+if (search_path.length == 0) {
+   search_path = 'search.xml';
+}
+var path = '/' + search_path;
+searchFunc(path, 'local-search-input', 'local-search-result');
+</script><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
