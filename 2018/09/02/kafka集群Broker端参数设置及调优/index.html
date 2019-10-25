@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.9.0"><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="心有多大，舞台就有多大！"><title>kafka集群Broker端参数设置及调优 | Joker's Blog</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/normalize/8.0.1/normalize.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//lib.baomitu.com/jquery/3.4.0/jquery.min.js"></script><link rel="icon" mask sizes="any" href="/favicon.ico"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><link rel="alternate" type="application/atom+xml" href="/atom.xml"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">kafka集群Broker端参数设置及调优</h1><a id="logo" href="/.">Joker's Blog</a><p class="description">高金涛</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/history/"><i class="fa fa-history"> 历史</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">kafka集群Broker端参数设置及调优</h1><div class="post-meta">Sep 2, 2018<span> | </span><span class="category"><a href="/categories/消息中间件/">消息中间件</a></span></div><div class="clear"><div class="toc-article" id="toc"><div class="toc-title">文章目录</div><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Distributed-streaming-platform"><span class="toc-number">1.</span> <span class="toc-text">Distributed streaming platform</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Kafka-as-a-Storage-System"><span class="toc-number">2.</span> <span class="toc-text">Kafka as a Storage System</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#kafka实现高吞吐率的秘密"><span class="toc-number">3.</span> <span class="toc-text">kafka实现高吞吐率的秘密</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#kafka集群Broker端全局参数设置"><span class="toc-number">4.</span> <span class="toc-text">kafka集群Broker端全局参数设置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#kafka集群Broker端Topic级别参数设置"><span class="toc-number">5.</span> <span class="toc-text">kafka集群Broker端Topic级别参数设置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#操作系统参数设置"><span class="toc-number">6.</span> <span class="toc-text">操作系统参数设置</span></a></li></ol></div></div><div class="post-content"><h2 id="Distributed-streaming-platform"><a href="#Distributed-streaming-platform" class="headerlink" title="Distributed streaming platform"></a>Distributed streaming platform</h2><figure class="highlight livecodeserver"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">Apache Kafka® is <span class="keyword">a</span> distributed streaming <span class="built_in">platform</span>. What exactly does that mean?</span><br><span class="line">A streaming <span class="built_in">platform</span> has <span class="literal">three</span> key capabilities:</span><br><span class="line">   -  Publish <span class="keyword">and</span> subscribe <span class="built_in">to</span> streams <span class="keyword">of</span> records, similar <span class="built_in">to</span> <span class="keyword">a</span> message queue <span class="keyword">or</span> enterprise messaging <span class="keyword">system</span>.</span><br><span class="line">   - similar <span class="built_in">to</span> <span class="keyword">a</span> message queue <span class="keyword">or</span> enterprise messaging <span class="keyword">system</span>.</span><br><span class="line">   -  Process streams <span class="keyword">of</span> records <span class="keyword">as</span> they occur.</span><br><span class="line"></span><br><span class="line">Kafka is generally used <span class="keyword">for</span> <span class="literal">two</span> broad classes <span class="keyword">of</span> applications:</span><br><span class="line">- Building real-<span class="built_in">time</span> streaming data pipelines that reliably <span class="built_in">get</span> data between systems <span class="keyword">or</span> applications</span><br><span class="line">- Building real-<span class="built_in">time</span> streaming applications that transform <span class="keyword">or</span> react <span class="built_in">to</span> <span class="keyword">the</span> streams <span class="keyword">of</span> data</span><br><span class="line"></span><br><span class="line">To understand how Kafka does these things, let<span class="string">'s dive in and explore Kafka'</span>s capabilities <span class="built_in">from</span> <span class="keyword">the</span> bottom up.</span><br><span class="line">First <span class="keyword">a</span> few concepts:</span><br><span class="line"></span><br><span class="line">- Kafka is run <span class="keyword">as</span> <span class="keyword">a</span> cluster <span class="keyword">on</span> <span class="title">one</span> <span class="title">or</span> <span class="title">more</span> <span class="title">servers</span> <span class="title">that</span> <span class="title">can</span> <span class="title">span</span> <span class="title">multiple</span> <span class="title">datacenters</span>.</span><br><span class="line">- The Kafka cluster stores streams <span class="keyword">of</span> records <span class="keyword">in</span> categories called topics.</span><br><span class="line">- Each record consists <span class="keyword">of</span> <span class="keyword">a</span> key, <span class="keyword">a</span> <span class="built_in">value</span>, <span class="keyword">and</span> <span class="keyword">a</span> timestamp.</span><br></pre></td></tr></table></figure>
+
+<h2 id="Kafka-as-a-Storage-System"><a href="#Kafka-as-a-Storage-System" class="headerlink" title="Kafka as a Storage System"></a>Kafka as a Storage System</h2><figure class="highlight applescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">Any message queue <span class="keyword">that</span> allows publishing messages decoupled <span class="keyword">from</span> consuming them </span><br><span class="line"><span class="keyword">is</span> effectively acting <span class="keyword">as</span> a storage system <span class="keyword">for</span> <span class="keyword">the</span> <span class="keyword">in</span>-flight messages. What <span class="keyword">is</span> </span><br><span class="line">different <span class="keyword">about</span> Kafka <span class="keyword">is</span> <span class="keyword">that</span> <span class="keyword">it</span> <span class="keyword">is</span> a very good storage system.</span><br><span class="line"></span><br><span class="line">- Data written <span class="keyword">to</span> Kafka <span class="keyword">is</span> written <span class="keyword">to</span> disk <span class="keyword">and</span> replicated <span class="keyword">for</span> fault-tolerance. </span><br><span class="line">Kafka allows producers <span class="keyword">to</span> wait <span class="keyword">on</span> acknowledgement so <span class="keyword">that</span> a <span class="built_in">write</span> <span class="keyword">isn't</span> considered</span><br><span class="line">complete <span class="keyword">until</span> <span class="keyword">it</span> <span class="keyword">is</span> fully replicated <span class="keyword">and</span> guaranteed <span class="keyword">to</span> persist even <span class="keyword">if</span> <span class="keyword">the</span> server </span><br><span class="line">written <span class="keyword">to</span> fails.</span><br><span class="line"></span><br><span class="line">- The disk structures Kafka uses scale well，Kafka will perform <span class="keyword">the</span> same whether you </span><br><span class="line">have <span class="number">50</span> KB <span class="keyword">or</span> <span class="number">50</span> TB <span class="keyword">of</span> persistent data <span class="keyword">on</span> <span class="keyword">the</span> server.</span><br><span class="line"></span><br><span class="line">- As a <span class="literal">result</span> <span class="keyword">of</span> taking storage seriously <span class="keyword">and</span> allowing <span class="keyword">the</span> clients <span class="keyword">to</span> control </span><br><span class="line">their <span class="built_in">read</span> position, you can think <span class="keyword">of</span> Kafka <span class="keyword">as</span> a kind <span class="keyword">of</span> special purpose </span><br><span class="line">distributed filesystem dedicated <span class="keyword">to</span> high-performance, low-latency commit </span><br><span class="line"><span class="built_in">log</span> storage, replication, <span class="keyword">and</span> propagation.</span><br></pre></td></tr></table></figure>
+
+<h2 id="kafka实现高吞吐率的秘密"><a href="#kafka实现高吞吐率的秘密" class="headerlink" title="kafka实现高吞吐率的秘密"></a>kafka实现高吞吐率的秘密</h2><ul>
+<li>一个用户程序要把文件内容发送到网络，这个用户程序是工作在用户空间，文件和网络socket属于硬件资源，两者之间有一个内核空间。</li>
+</ul>
+<p>​        在Linux kernel2.2 之后出现了一种叫做”零拷贝(zero-copy)”系统调用机制，就是跳过“用户缓冲区”的拷贝，建立一个磁盘空间和内存的直接映射，数据不再复制到“用户态缓冲区”</p>
+<ul>
+<li>kafka的队列topic被分为了多个区partition，每个partition又分为多个段segment，所以一个队列中的消息实际上是保存在N多个片段文件中，通过分段的方式，每次文件操作都是对一个小文件的操作，增加了并行处理能力</li>
+</ul>
+<ul>
+<li>kafka允许进行批量发送消息，先将消息缓存在内存中，然后通过一次请求批量把消息发送出去，比如：可以指定缓存的消息达到某个量的时候就发出去，或者缓存了固定的时间后就发送出去，如100条消息就发送，或者每5秒发送一次这种策略将大大减少服务端的I/O次数。</li>
+<li>kafka还支持对消息集合进行压缩，Producer可以通过GZIP或Snappy格式或LZ4对消息集合进行压缩,压缩的好处就是减少传输的数据量，减轻对网络传输的压力。</li>
+</ul>
+<h2 id="kafka集群Broker端全局参数设置"><a href="#kafka集群Broker端全局参数设置" class="headerlink" title="kafka集群Broker端全局参数设置"></a>kafka集群Broker端全局参数设置</h2><hr>
+<ul>
+<li>broker. id</li>
+</ul>
+<p>唯一的整数来标识每个broker，不能与其他broker冲突，建议从0开始。</p>
+<hr>
+<ul>
+<li>log.dirs    &lt;= 吞吐量提升</li>
+</ul>
+<p>确保该目录有比较大的硬盘空间。如果需要指定多个目录，以逗号分隔即可，比如/xin/kafka1,/xin/kafka2。这样做的好处是Kafka会力求均匀地在多个目录下存放分区(partition)数据。如果挂载多块磁盘，那么会有多个磁头同时执行写操作。对吞吐量具有非常强的提升。</p>
+<hr>
+<ul>
+<li>zookeeper.connect</li>
+</ul>
+<p>该参数则完全没有默认值，必须要配置。这个参数也可以是一个逗号分隔值的列表，比如zk1:2181,zk2:2181,zk3:2181/kafka。注意结尾的/kafka，它是zookeeper的chroot，是可选的配置，如果不指定的话就默认使用zookeeper的根路径。</p>
+<hr>
+<ul>
+<li>listeners</li>
+</ul>
+<p>协议配置包括PLAINTEXT，SSL, SASL_SSL等，格式是[协议]://[主机名]:[端口],[[协议]://[主机名]:[端口]]，该参数是Brocker端开发给clients的监听端口。建议配置：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="symbol">PLAINTEXT:</span><span class="comment">//hostname:port（未启用安全认证）</span></span><br><span class="line"><span class="symbol">SSL:</span><span class="comment">//hostname:port（启用安全认证）</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<ul>
+<li>unclean.leader.election.enable  &lt;= 数据的完整性保证</li>
+</ul>
+<p>解决ISR所有副本为空，leader又出现宕机的情况。此时leader该如何选择呢？截止kafka 1.0.0版本，该参数默认为false，表示不允许选择非ISR副本集之外的broker。因为高可用性与数据的完整性，kafka官方选择了后者。</p>
+<hr>
+<ul>
+<li>delete.topic.enable</li>
+</ul>
+<p>不多说，是否允许删除topic，鉴于0.9.0.0新增了ACL机制权限机制，误操作基本是不存在的。</p>
+<hr>
+<ul>
+<li>log.retention.{hours|minutes|ms}  &lt;=时间维度</li>
+</ul>
+<p>优先选取ms的配置，minutes次之，hours最后，默认留存机制是7天。如何判断：</p>
+<p>新版本：基于消息中的时间戳来进行判断。老版本：根据日志文件的最新修改时间进行比较.</p>
+<hr>
+<ul>
+<li>log.retention.bytes  &lt;=空间维度</li>
+</ul>
+<p>Kafka会定期删除那些大小超过该参数值的日志文件。默认值是-1，表示Kafka永远不会根据大小来删除日志</p>
+<hr>
+<ul>
+<li>min.insync.replicas &lt;=     与acks=-1 搭配使用</li>
+</ul>
+<p>持久化级别，用于最少需要多少副本同步。在acks=all(或-1) 时才有意义。min.insync.replicas指定了必须要应答写请求的最小数量的副本数。如果不能满足，producer将会抛出NotEnoughReplicas或NotEnoughReplicasAfterAppend异常。该参数用于实现更好的消息持久性。</p>
+<p>举例如下：</p>
+<p>5台broker  ack =-1  min.insync.replicas = 3</p>
+<p>上述表示最少需要3个副本同步后，Broker才能够对外提供服务,否则将会抛出异常。若3台Broker宕机，即使剩余2台全部同步结束，满足了 ack =-1也要报错。</p>
+<hr>
+<ul>
+<li>num.network.threads  &lt;= 请求转发线程数量</li>
+</ul>
+<p>默认值为3，主要负责转发来自broker和clients发送过来的各种请求。强调这里只是转发，真实环境下，需要监听NetWorkerProcessorAvgIdlePercent JMX指标，若指标低于0.3，则建议调高该值。</p>
+<hr>
+<ul>
+<li>num.io.threads  &lt;= 实际处理线程数量</li>
+</ul>
+<p>默认是8，也即broker后端有8个线程以轮询的方式不停的监听转发过来的网络请求并进行实时处理。</p>
+<hr>
+<ul>
+<li>message.max.bytes</li>
+</ul>
+<p>broker能够接收的最大消息大小，默认是977KB。因此注意，生产环境应该调高该值。</p>
+<h2 id="kafka集群Broker端Topic级别参数设置"><a href="#kafka集群Broker端Topic级别参数设置" class="headerlink" title="kafka集群Broker端Topic级别参数设置"></a>kafka集群Broker端Topic级别参数设置</h2><ul>
+<li>delete.topic.enable</li>
+<li>message.max.bytes</li>
+<li>log.retention.bytes</li>
+</ul>
+<h2 id="操作系统参数设置"><a href="#操作系统参数设置" class="headerlink" title="操作系统参数设置"></a>操作系统参数设置</h2><ul>
+<li>OS页缓存刷盘flush时间  &lt;= 提升吞吐量</li>
+</ul>
+<p>默认是5秒，间隔实在太短，适当增加该值可以很高的提行OS物理写入操作的性能。LinkedIn设置为2分钟来提升吞吐量。</p>
+<ul>
+<li>文件系统选择</li>
+</ul>
+<p>官方测试XFS文件系统写入时间为160秒，Ext4大约是250毫秒。建议生产环境最好使用XFS文件系统。</p>
+<ul>
+<li>OS文件描述符限制</li>
+</ul>
+<p>OS系统最大打开的文件描述符是有上限的，举例：一个kafka集群主要有3个副本，50个分区，若每一个分区文件大小为10G，而分区内日志段大小为1GB，则一个Broker需要维护1500个左右的文件描述符。因此根据需要设置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">ulimit</span> -n 100000</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>OS 操作系统缓冲区设置 （尚不确定）</li>
+</ul>
+</div><div><ul class="post-copyright"><li class="post-copyright-author"><strong>本文作者：</strong>gaojintao999@163.com</li><li class="post-copyright-link"><strong>本文链接：</strong><a href="/2018/09/02/kafka集群Broker端参数设置及调优/">https://gjtmaster.github.io/2018/09/02/kafka集群Broker端参数设置及调优/</a></li><li class="post-copyright-license"><strong>版权声明：</strong>The author owns the copyright, please indicate the source reproduced.</li></ul></div><br><div class="tags"><a href="/tags/Kafka/">Kafka</a><a href="/tags/消息中间件/">消息中间件</a></div><div class="post-nav"><a class="pre" href="/2018/09/03/kafka生产者Producer参数设置及调优/">kafka生产者Producer参数设置及调优</a><a class="next" href="/2018/09/02/kafka生产者和消费者吞吐量测试/">kafka生产者和消费者吞吐量测试</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><div class="search-form"><input id="local-search-input" placeholder="Search" type="text" name="q" results="0"><div id="local-search-result"></div></div></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/JVM/">JVM</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/实时计算框架/">实时计算框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据存储格式/">数据存储格式</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据库/">数据库</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据的导入导出/">数据的导入导出</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/日志框架/">日志框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/消息中间件/">消息中间件</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/Oracle/" style="font-size: 15px;">Oracle</a> <a href="/tags/Flink/" style="font-size: 15px;">Flink</a> <a href="/tags/Yarn/" style="font-size: 15px;">Yarn</a> <a href="/tags/Flink-on-Yarn/" style="font-size: 15px;">Flink on Yarn</a> <a href="/tags/实时计算/" style="font-size: 15px;">实时计算</a> <a href="/tags/Logback/" style="font-size: 15px;">Logback</a> <a href="/tags/FlinkSQL/" style="font-size: 15px;">FlinkSQL</a> <a href="/tags/Json/" style="font-size: 15px;">Json</a> <a href="/tags/Kafka/" style="font-size: 15px;">Kafka</a> <a href="/tags/消息中间件/" style="font-size: 15px;">消息中间件</a> <a href="/tags/ogg/" style="font-size: 15px;">ogg</a> <a href="/tags/JVM/" style="font-size: 15px;">JVM</a> <a href="/tags/内存回收/" style="font-size: 15px;">内存回收</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2019/08/19/Flink 进阶：Time 深度解析/">Flink 进阶：Time 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/19/Flink 进阶：Flink Connector详解/">Flink 进阶：Flink Connector详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/16/Flink 进阶：增量 Checkpoint 详解/">Flink 进阶：增量 Checkpoint 详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/15/Flink 进阶：Runtime 核心机制剖析/">Flink 进阶：Runtime 核心机制剖析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink1.7.1与Kafka0.11.0.1/">Flink1.7.1与Kafka0.11.0.1</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/10/Flink on Yarn HA/">Flink On Yarn HA</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/10/15/Flink On Yan集群部署/">Flink On Yarn集群部署</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/10/13/Flink使用Logback作为日志框架的相关配置/">Flink使用Logback作为日志框架的相关配置</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/18/FlinkSQL深度解析/">Flink SQL 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/13/利用ogg实现oracle到kafka的增量数据实时同步/">利用ogg实现oracle到kafka的增量数据实时同步</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://matt33.com/" title="Matt's Blog" target="_blank">Matt's Blog</a><ul></ul><a href="https://www.haomwei.com/technology/maupassant-hexo.html" title="Maupassant's usage" target="_blank">Maupassant's usage</a><ul></ul><a href="https://www.jianshu.com/p/f4332764e8bd" title="hexo's usage" target="_blank">hexo's usage</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2019 <a href="/." rel="nofollow">Joker's Blog.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css"><script type="text/javascript" src="/js/search.js?v=0.0.0"></script><script>var search_path = 'search.xml';
+if (search_path.length == 0) {
+   search_path = 'search.xml';
+}
+var path = '/' + search_path;
+searchFunc(path, 'local-search-input', 'local-search-result');
+</script><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
