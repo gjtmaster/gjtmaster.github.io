@@ -1,0 +1,1186 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.9.0"><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="心有多大，舞台就有多大！"><title>Flink SQL 深度解析 | Joker's Blog</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/normalize/8.0.1/normalize.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//lib.baomitu.com/jquery/3.4.0/jquery.min.js"></script><link rel="icon" mask sizes="any" href="/favicon.ico"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><link rel="alternate" type="application/atom+xml" href="/atom.xml"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">Flink SQL 深度解析</h1><a id="logo" href="/.">Joker's Blog</a><p class="description">高金涛</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/history/"><i class="fa fa-history"> 历史</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">Flink SQL 深度解析</h1><div class="post-meta">Nov 18, 2018<span> | </span><span class="category"><a href="/categories/实时计算框架/">实时计算框架</a></span></div><div class="clear"><div class="toc-article" id="toc"><div class="toc-title">文章目录</div><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#大数据计算领域对SQL的应用"><span class="toc-number">1.</span> <span class="toc-text">大数据计算领域对SQL的应用</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#离线计算（批计算）"><span class="toc-number">1.1.</span> <span class="toc-text">离线计算（批计算）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#实时计算（流计算）"><span class="toc-number">1.2.</span> <span class="toc-text">实时计算（流计算）</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#SQL高性能与简洁性"><span class="toc-number">2.</span> <span class="toc-text">SQL高性能与简洁性</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#性能"><span class="toc-number">2.1.</span> <span class="toc-text">性能</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#简洁"><span class="toc-number">2.2.</span> <span class="toc-text">简洁</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Flink-SQL-Job的组成"><span class="toc-number">3.</span> <span class="toc-text">Flink SQL Job的组成</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Flink-SQL-核心算子"><span class="toc-number">4.</span> <span class="toc-text">Flink SQL 核心算子</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#环境"><span class="toc-number">4.1.</span> <span class="toc-text">环境</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#源码方式"><span class="toc-number">4.2.</span> <span class="toc-text">源码方式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#依赖Flink包方式"><span class="toc-number">4.3.</span> <span class="toc-text">依赖Flink包方式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#示例数据及测试类"><span class="toc-number">4.4.</span> <span class="toc-text">示例数据及测试类</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#测试数据"><span class="toc-number">4.4.1.</span> <span class="toc-text">测试数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#测试类"><span class="toc-number">4.4.2.</span> <span class="toc-text">测试类</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Select"><span class="toc-number">4.5.</span> <span class="toc-text">Select</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#WHERE"><span class="toc-number">4.6.</span> <span class="toc-text">WHERE</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#GROUP-BY"><span class="toc-number">4.7.</span> <span class="toc-text">GROUP BY</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#UNION-ALL"><span class="toc-number">4.8.</span> <span class="toc-text">UNION ALL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#UNION"><span class="toc-number">4.9.</span> <span class="toc-text">UNION</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#JOIN"><span class="toc-number">4.10.</span> <span class="toc-text">JOIN</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Window"><span class="toc-number">4.11.</span> <span class="toc-text">Window</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Over-Window"><span class="toc-number">4.11.1.</span> <span class="toc-text">Over Window</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Bounded-ROWS-OVER-Window"><span class="toc-number">4.11.1.1.</span> <span class="toc-text">Bounded ROWS OVER Window</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Bounded-RANGE-OVER-Window"><span class="toc-number">4.11.1.2.</span> <span class="toc-text">Bounded RANGE OVER Window</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Group-Window"><span class="toc-number">4.11.2.</span> <span class="toc-text">Group Window</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Tumble"><span class="toc-number">4.11.2.1.</span> <span class="toc-text">Tumble</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Hop"><span class="toc-number">4.11.2.2.</span> <span class="toc-text">Hop</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Session"><span class="toc-number">4.11.2.3.</span> <span class="toc-text">Session</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#UDX"><span class="toc-number">4.12.</span> <span class="toc-text">UDX</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#UDF"><span class="toc-number">4.12.1.</span> <span class="toc-text">UDF</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#UDTF"><span class="toc-number">4.12.2.</span> <span class="toc-text">UDTF</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#UDAF"><span class="toc-number">4.12.3.</span> <span class="toc-text">UDAF</span></a></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Source-amp-Sink"><span class="toc-number">5.</span> <span class="toc-text">Source&amp;Sink</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Source-定义"><span class="toc-number">5.1.</span> <span class="toc-text">Source 定义</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Source-Function定义"><span class="toc-number">5.1.1.</span> <span class="toc-text">Source Function定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#定义-StreamTableSource"><span class="toc-number">5.1.2.</span> <span class="toc-text">定义 StreamTableSource</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Sink-定义"><span class="toc-number">5.2.</span> <span class="toc-text">Sink 定义</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#构建主程序"><span class="toc-number">5.3.</span> <span class="toc-text">构建主程序</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#执行并查看运行结果"><span class="toc-number">5.4.</span> <span class="toc-text">执行并查看运行结果</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#总结"><span class="toc-number">6.</span> <span class="toc-text">总结</span></a></li></ol></div></div><div class="post-content"><h1 id="大数据计算领域对SQL的应用"><a href="#大数据计算领域对SQL的应用" class="headerlink" title="大数据计算领域对SQL的应用"></a>大数据计算领域对SQL的应用</h1><h2 id="离线计算（批计算）"><a href="#离线计算（批计算）" class="headerlink" title="离线计算（批计算）"></a>离线计算（批计算）</h2><p>提及大数据计算领域不得不说MapReduce计算模型，MapReduce最早是由Google公司研究提出的一种面向大规模数据处理的并行计算模型和方法，并发于2004年发表了论文Simplified Data Processing on Large Clusters。论文发表之后Apache 开源社区参考Google MapReduce，基于Java设计开发了一个称为Hadoop的开源MapReduce并行计算框架。很快得到了全球学术界和工业界的普遍关注，并得到推广和普及应用。但利用Hadoop进行MapReduce的开发，需要开发人员精通Java语言，并了解MapReduce的运行原理，这样在一定程度上提高了MapReduce的开发门槛，所以在开源社区又不断涌现了一些为了简化MapReduce开发的开源框架，其中Hive就是典型的代表。HSQL可以让用户以类SQL的方式描述MapReduce计算，比如原本需要几十行，甚至上百行才能完成的wordCount，用户一条SQL语句就能完成了，这样极大的降低了MapReduce的开发门槛，进而也成功的将SQL应用到了大数据计算领域当中来。</p>
+<h2 id="实时计算（流计算）"><a href="#实时计算（流计算）" class="headerlink" title="实时计算（流计算）"></a>实时计算（流计算）</h2><p>SQL不仅仅被成功的应用到了离线计算，SQL的易用性也吸引了流计算产品，目前最热的Spark，Flink也纷纷支持了SQL，尤其是Flink支持的更加彻底，集成了Calcite，完全遵循ANSI-SQL标准。Apache Flink在low-level API上面用DataSet支持批计算，用DataStream支持流计算，但在High-Level API上面利用SQL将流与批进行了统一，使得用户编写一次SQL既可以在流计算中使用，又可以在批计算中使用，为既有流计算业务，又有批计算业务的用户节省了大量开发成本。</p>
+<h1 id="SQL高性能与简洁性"><a href="#SQL高性能与简洁性" class="headerlink" title="SQL高性能与简洁性"></a>SQL高性能与简洁性</h1><h2 id="性能"><a href="#性能" class="headerlink" title="性能"></a>性能</h2><p>SQL经过传统数据库领域几十年的不断打磨，查询优化器已经能够极大的优化SQL的查询性能，Apache Flink 应用Calcite进行查询优化，复用了大量数据库查询优化规则，在性能上不断追求极致，能够让用户关心但不用担心性能问题。如下图(Alibaba 对 Apache Flink 进行架构优化后的组件栈)</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvN43HQMdZty0IxMowiaBs1oaPZwyEeVpLvkLakk4V51uz6iaMbz9toslicw/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p>相对于DataStream而言，SQL会经过Optimization模块透明的为用户进行查询优化，用户专心编写自己的业务逻辑，不用担心性能，却能得到最优的查询性能!</p>
+<h2 id="简洁"><a href="#简洁" class="headerlink" title="简洁"></a>简洁</h2><p>就简洁性而言，SQL与DataSet和DataStream相比具有很大的优越性，我们先用一个WordCount示例来直观的查看用户的代码量：</p>
+<p>DataStream/DataSetAPI</p>
+<figure class="highlight processing"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">... <span class="comment">//省略初始化代码</span></span><br><span class="line"><span class="comment">// 核心逻辑</span></span><br><span class="line"><span class="built_in">text</span>.flatMap(<span class="keyword">new</span> WordCount.Tokenizer()).keyBy(<span class="keyword">new</span> <span class="built_in">int</span>[]&#123;<span class="number">0</span>&#125;).sum(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// flatmap 代码定义</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> class Tokenizer implements FlatMapFunction&lt;<span class="keyword">String</span>, Tuple2&lt;<span class="keyword">String</span>, Integer&gt;&gt; &#123;</span><br><span class="line"><span class="keyword">public</span> Tokenizer() &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> flatMap(<span class="keyword">String</span> value, Collector&lt;Tuple2&lt;<span class="keyword">String</span>, Integer&gt;&gt; out) &#123;</span><br><span class="line"><span class="keyword">String</span>[] tokens = value.toLowerCase().<span class="built_in">split</span>(<span class="string">"\\W+"</span>);</span><br><span class="line"><span class="keyword">String</span>[] var4 = tokens;</span><br><span class="line"><span class="built_in">int</span> var5 = tokens.length;</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span>(<span class="built_in">int</span> var6 = <span class="number">0</span>; var6 &lt; var5; ++var6) &#123;</span><br><span class="line"><span class="keyword">String</span> token = var4[var6];</span><br><span class="line"><span class="keyword">if</span> (token.length() &gt; <span class="number">0</span>) &#123;</span><br><span class="line">out.collect(<span class="keyword">new</span> Tuple2(token, <span class="number">1</span>));</span><br><span class="line">&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>SQL</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">...//省略初始化代码</span><br><span class="line"><span class="keyword">SELECT</span> word, <span class="built_in">COUNT</span>(word) <span class="keyword">FROM</span> tab <span class="keyword">GROUP</span> <span class="keyword">BY</span> word;</span><br></pre></td></tr></table></figure>
+
+<p>我们直观的体会到相同的统计功能使用SQL的简洁性。</p>
+<h1 id="Flink-SQL-Job的组成"><a href="#Flink-SQL-Job的组成" class="headerlink" title="Flink SQL Job的组成"></a>Flink SQL Job的组成</h1><p>我们做任何数据计算都离不开读取原始数据，计算逻辑和写入计算结果数据三部分，当然基于Apache Flink SQL编写的计算Job也离不开这三个部分，如下所示：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNmwGyZgbFaPfs2bjXzSGdh9jSTKnxrYlSbLzwMUn95uVLOuHcueGLnw/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p>如上所示，一个完整的Apache Flink SQL Job 由如下三部分：</p>
+<ul>
+<li>Source Operator - Soruce operator是对外部数据源的抽象, 目前Apache Flink内置了很多常用的数据源实现，比如上图提到的Kafka。</li>
+<li>Query Operators - 查询算子主要完成如图的Query Logic，目前支持了Union，Join，Projection,Difference, Intersection以及window等大多数传统数据库支持的操作。</li>
+<li>Sink Operator - Sink operator 是对外结果表的抽象，目前Apache Flink也内置了很多常用的结果表的抽象，比如上图提到的Kafka。</li>
+</ul>
+<h1 id="Flink-SQL-核心算子"><a href="#Flink-SQL-核心算子" class="headerlink" title="Flink SQL 核心算子"></a>Flink SQL 核心算子</h1><p>目前Flink SQL支持Union，Join，Projection,Difference, Intersection以及Window等大多数传统数据库支持的操作，接下来为大家分别进行简单直观的介绍。</p>
+<h2 id="环境"><a href="#环境" class="headerlink" title="环境"></a>环境</h2><p>为了很好的体验和理解Apache Flink SQL算子我们需要先准备一下测试环境，我们选择IDEA，以ITCase测试方式来进行体验。IDEA 安装这里不占篇幅介绍了，相信大家能轻松搞定！我们进行功能体验有两种方式，具体如下：</p>
+<h2 id="源码方式"><a href="#源码方式" class="headerlink" title="源码方式"></a>源码方式</h2><p>对于开源爱好者可能更喜欢源代码方式理解和体验Apache Flink SQL功能，那么我们需要下载源代码并导入到IDEA中：</p>
+<ul>
+<li>下载源码：</li>
+</ul>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 下载源代码</span></span><br><span class="line">git clone https:<span class="comment">//github.com/apache/flink.git study</span></span><br><span class="line"><span class="comment">// 进入源码目录</span></span><br><span class="line">cd study</span><br><span class="line"><span class="comment">// 拉取稳定版release-1.6</span></span><br><span class="line">git fetch origin <span class="built_in">release</span><span class="number">-1.6</span>:<span class="built_in">release</span><span class="number">-1.6</span></span><br><span class="line"><span class="comment">//切换到稳定版</span></span><br><span class="line">git checkout <span class="built_in">release</span><span class="number">-1.6</span></span><br><span class="line"><span class="comment">//将依赖安装到本地mvn仓库，耐心等待需要一段时间</span></span><br><span class="line">mvn clean install -DskipTests</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>导入到IDEA<br>将Flink源码导入到IDEA过程这里不再占用篇幅，导入后确保在IDEA中可以运行 <code>org.apache.flink.table.runtime.stream.sql.SqlITCase</code> 并测试全部通过，即证明体验环境已经完成，即证明体验环境已经完成。如下图所示：</li>
+</ul>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNo09iaFxmhAfdNGPSjCc6qnjDUWyZaCO8UBSkyUJy1EEcicoSv4qa8wzg/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p>如上图运行测试后显示测试通过，我们就可以继续下面的Apache Flink SQL功能体验了。</p>
+<h2 id="依赖Flink包方式"><a href="#依赖Flink包方式" class="headerlink" title="依赖Flink包方式"></a>依赖Flink包方式</h2><p>我们还有一种更简单直接的方式，就是新建一个mvn项目，并在pom中添加如下依赖：</p>
+<figure class="highlight dust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="xml"> </span></span><br><span class="line"><span class="xml"><span class="tag">&lt;<span class="name">properties</span>&gt;</span></span></span><br><span class="line"><span class="xml">	<span class="tag">&lt;<span class="name">table.version</span>&gt;</span>1.6-SNAPSHOT<span class="tag">&lt;/<span class="name">table.version</span>&gt;</span></span></span><br><span class="line"><span class="xml"><span class="tag">&lt;/<span class="name">properties</span>&gt;</span></span></span><br><span class="line"><span class="xml"></span></span><br><span class="line"><span class="xml"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.apache.flink<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>flink-table_2.11<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>$</span><span class="template-variable">&#123;table.version&#125;</span><span class="xml"><span class="tag">&lt;/<span class="name">version</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml"></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.apache.flink<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>flink-scala_2.11<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>$</span><span class="template-variable">&#123;table.version&#125;</span><span class="xml"><span class="tag">&lt;/<span class="name">version</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml"></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.apache.flink<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>flink-streaming-scala_2.11<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>$</span><span class="template-variable">&#123;table.version&#125;</span><span class="xml"><span class="tag">&lt;/<span class="name">version</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml"></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.apache.flink<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>flink-streaming-java_2.11<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>$</span><span class="template-variable">&#123;table.version&#125;</span><span class="xml"><span class="tag">&lt;/<span class="name">version</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml"></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>JUnit<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>JUnit<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>4.12<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span></span><br><span class="line"><span class="xml">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span></span><br><span class="line"><span class="xml"></span></span><br><span class="line"><span class="xml"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></span></span><br></pre></td></tr></table></figure>
+
+<p>完成环境准备后，我们开始准备测试数据和写一个简单的测试类。</p>
+<h2 id="示例数据及测试类"><a href="#示例数据及测试类" class="headerlink" title="示例数据及测试类"></a>示例数据及测试类</h2><h3 id="测试数据"><a href="#测试数据" class="headerlink" title="测试数据"></a>测试数据</h3><ul>
+<li>customer_tab 表 - 客户表保存客户id，客户姓名和客户描述信息。字段及测试数据如下：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+</tr>
+</tbody></table>
+<ul>
+<li>order_tab 表 - 订单表保存客户购买的订单信息，包括订单id，订单时间和订单描述信息。 字段节测试数据如下：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>o_id</th>
+<th>c_id</th>
+<th>o_time</th>
+<th>o_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>o_oo1</td>
+<td>c_002</td>
+<td>2018-11-05 10:01:01</td>
+<td>iphone</td>
+</tr>
+<tr>
+<td>o_002</td>
+<td>c_001</td>
+<td>2018-11-05 10:01:55</td>
+<td>ipad</td>
+</tr>
+<tr>
+<td>o_003</td>
+<td>c_001</td>
+<td>2018-11-05 10:03:44</td>
+<td>flink book</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Item_tab<br> 商品表, 携带商品id，商品类型，出售时间，价格等信息，具体如下：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>itemID</th>
+<th>itemType</th>
+<th>onSellTime</th>
+<th>price</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ITEM001</td>
+<td>Electronic</td>
+<td>2017-11-11 10:01:00</td>
+<td>20</td>
+</tr>
+<tr>
+<td>ITEM002</td>
+<td>Electronic</td>
+<td>2017-11-11 10:02:00</td>
+<td>50</td>
+</tr>
+<tr>
+<td>ITEM003</td>
+<td>Electronic</td>
+<td><strong>*2017-11-11 10:03:00*</strong></td>
+<td>30</td>
+</tr>
+<tr>
+<td>ITEM004</td>
+<td>Electronic</td>
+<td><strong>*2017-11-11 10:03:00*</strong></td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM005</td>
+<td>Electronic</td>
+<td>2017-11-11 10:05:00</td>
+<td>40</td>
+</tr>
+<tr>
+<td>ITEM006</td>
+<td>Electronic</td>
+<td>2017-11-11 10:06:00</td>
+<td>20</td>
+</tr>
+<tr>
+<td>ITEM007</td>
+<td>Electronic</td>
+<td>2017-11-11 10:07:00</td>
+<td>70</td>
+</tr>
+<tr>
+<td>ITEM008</td>
+<td>Clothes</td>
+<td>2017-11-11 10:08:00</td>
+<td>20</td>
+</tr>
+</tbody></table>
+<ul>
+<li>PageAccess_tab<br>页面访问表，包含用户ID，访问时间，用户所在地域信息，具体数据如下：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>userId</th>
+<th>accessTime</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ShangHai</td>
+<td>U0010</td>
+<td>2017-11-11 10:01:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U1001</td>
+<td>2017-11-11 10:01:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U2032</td>
+<td>2017-11-11 10:10:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U1100</td>
+<td>2017-11-11 10:11:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0011</td>
+<td>2017-11-11 12:10:00</td>
+</tr>
+</tbody></table>
+<ul>
+<li>PageAccessCount_tab<br>页面访问表，访问量，访问时间，用户所在地域信息，具体数据如下：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>userCount</th>
+<th>accessTime</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ShangHai</td>
+<td>100</td>
+<td>2017.11.11 10:01:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>86</td>
+<td>2017.11.11 10:01:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>210</td>
+<td>2017.11.11 10:06:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>33</td>
+<td>2017.11.11 10:10:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>129</td>
+<td>2017.11.11 12:10:00</td>
+</tr>
+</tbody></table>
+<ul>
+<li>PageAccessSession_tab<br>页面访问表，访问量，访问时间，用户所在地域信息，具体数据如下：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>userId</th>
+<th>accessTime</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ShangHai</td>
+<td>U0011</td>
+<td>2017-11-11 10:01:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0012</td>
+<td>2017-11-11 10:02:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0013</td>
+<td>2017-11-11 10:03:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0015</td>
+<td>2017-11-11 10:05:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0011</td>
+<td>2017-11-11 10:10:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U0110</td>
+<td>2017-11-11 10:10:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U2010</td>
+<td>2017-11-11 10:11:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0410</td>
+<td>2017-11-11 12:16:00</td>
+</tr>
+</tbody></table>
+<h3 id="测试类"><a href="#测试类" class="headerlink" title="测试类"></a>测试类</h3><p>我们创建一个<code>SqlOverviewITCase.scala</code> 用于接下来介绍Flink SQL算子的功能体验。代码如下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br><span class="line">189</span><br><span class="line">190</span><br><span class="line">191</span><br><span class="line">192</span><br><span class="line">193</span><br><span class="line">194</span><br><span class="line">195</span><br><span class="line">196</span><br><span class="line">197</span><br><span class="line">198</span><br><span class="line">199</span><br><span class="line">200</span><br><span class="line">201</span><br><span class="line">202</span><br><span class="line">203</span><br><span class="line">204</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> org.apache.flink.api.scala._</span><br><span class="line"><span class="keyword">import</span> org.apache.flink.runtime.state.<span class="type">StateBackend</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.runtime.state.memory.<span class="type">MemoryStateBackend</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.streaming.api.<span class="type">TimeCharacteristic</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.streaming.api.functions.sink.<span class="type">RichSinkFunction</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.streaming.api.functions.source.<span class="type">SourceFunction</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.streaming.api.functions.source.<span class="type">SourceFunction</span>.<span class="type">SourceContext</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.streaming.api.scala.<span class="type">StreamExecutionEnvironment</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.streaming.api.watermark.<span class="type">Watermark</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.table.api.<span class="type">TableEnvironment</span></span><br><span class="line"><span class="keyword">import</span> org.apache.flink.table.api.scala._</span><br><span class="line"><span class="keyword">import</span> org.apache.flink.types.<span class="type">Row</span></span><br><span class="line"><span class="keyword">import</span> org.junit.rules.<span class="type">TemporaryFolder</span></span><br><span class="line"><span class="keyword">import</span> org.junit.&#123;<span class="type">Rule</span>, <span class="type">Test</span>&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> scala.collection.mutable</span><br><span class="line"><span class="keyword">import</span> scala.collection.mutable.<span class="type">ArrayBuffer</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">SqlOverviewITCase</span> </span>&#123;</span><br><span class="line"><span class="keyword">val</span> _tempFolder = <span class="keyword">new</span> <span class="type">TemporaryFolder</span></span><br><span class="line"></span><br><span class="line"><span class="meta">@Rule</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">tempFolder</span></span>: <span class="type">TemporaryFolder</span> = _tempFolder</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">getStateBackend</span></span>: <span class="type">StateBackend</span> = &#123;</span><br><span class="line"><span class="keyword">new</span> <span class="type">MemoryStateBackend</span>()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 客户表数据</span></span><br><span class="line"><span class="keyword">val</span> customer_data = <span class="keyword">new</span> mutable.<span class="type">MutableList</span>[(<span class="type">String</span>, <span class="type">String</span>, <span class="type">String</span>)]</span><br><span class="line">customer_data.+=((<span class="string">"c_001"</span>, <span class="string">"Kevin"</span>, <span class="string">"from JinLin"</span>))</span><br><span class="line">customer_data.+=((<span class="string">"c_002"</span>, <span class="string">"Sunny"</span>, <span class="string">"from JinLin"</span>))</span><br><span class="line">customer_data.+=((<span class="string">"c_003"</span>, <span class="string">"JinCheng"</span>, <span class="string">"from HeBei"</span>))</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">// 订单表数据</span></span><br><span class="line"><span class="keyword">val</span> order_data = <span class="keyword">new</span> mutable.<span class="type">MutableList</span>[(<span class="type">String</span>, <span class="type">String</span>, <span class="type">String</span>, <span class="type">String</span>)]</span><br><span class="line">order_data.+=((<span class="string">"o_001"</span>, <span class="string">"c_002"</span>, <span class="string">"2018-11-05 10:01:01"</span>, <span class="string">"iphone"</span>))</span><br><span class="line">order_data.+=((<span class="string">"o_002"</span>, <span class="string">"c_001"</span>, <span class="string">"2018-11-05 10:01:55"</span>, <span class="string">"ipad"</span>))</span><br><span class="line">order_data.+=((<span class="string">"o_003"</span>, <span class="string">"c_001"</span>, <span class="string">"2018-11-05 10:03:44"</span>, <span class="string">"flink book"</span>))</span><br><span class="line"></span><br><span class="line"><span class="comment">// 商品销售表数据</span></span><br><span class="line"><span class="keyword">val</span> item_data = <span class="type">Seq</span>(</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365660000</span>L, (<span class="number">1510365660000</span>L, <span class="number">20</span>, <span class="string">"ITEM001"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365660000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365720000</span>L, (<span class="number">1510365720000</span>L, <span class="number">50</span>, <span class="string">"ITEM002"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365720000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365780000</span>L, (<span class="number">1510365780000</span>L, <span class="number">30</span>, <span class="string">"ITEM003"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365780000</span>L, (<span class="number">1510365780000</span>L, <span class="number">60</span>, <span class="string">"ITEM004"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365780000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365900000</span>L, (<span class="number">1510365900000</span>L, <span class="number">40</span>, <span class="string">"ITEM005"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365900000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365960000</span>L, (<span class="number">1510365960000</span>L, <span class="number">20</span>, <span class="string">"ITEM006"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365960000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366020000</span>L, (<span class="number">1510366020000</span>L, <span class="number">70</span>, <span class="string">"ITEM007"</span>, <span class="string">"Electronic"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366020000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366080000</span>L, (<span class="number">1510366080000</span>L, <span class="number">20</span>, <span class="string">"ITEM008"</span>, <span class="string">"Clothes"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">151036608000</span>L)))</span><br><span class="line"></span><br><span class="line"><span class="comment">// 页面访问表数据</span></span><br><span class="line"><span class="keyword">val</span> pageAccess_data = <span class="type">Seq</span>(</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365660000</span>L, (<span class="number">1510365660000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0010"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365660000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365660000</span>L, (<span class="number">1510365660000</span>L, <span class="string">"BeiJing"</span>, <span class="string">"U1001"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365660000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366200000</span>L, (<span class="number">1510366200000</span>L, <span class="string">"BeiJing"</span>, <span class="string">"U2032"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366200000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366260000</span>L, (<span class="number">1510366260000</span>L, <span class="string">"BeiJing"</span>, <span class="string">"U1100"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366260000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510373400000</span>L, (<span class="number">1510373400000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0011"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510373400000</span>L)))</span><br><span class="line"></span><br><span class="line"><span class="comment">// 页面访问量表数据2</span></span><br><span class="line"><span class="keyword">val</span> pageAccessCount_data = <span class="type">Seq</span>(</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365660000</span>L, (<span class="number">1510365660000</span>L, <span class="string">"ShangHai"</span>, <span class="number">100</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365660000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365660000</span>L, (<span class="number">1510365660000</span>L, <span class="string">"BeiJing"</span>, <span class="number">86</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365660000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365960000</span>L, (<span class="number">1510365960000</span>L, <span class="string">"BeiJing"</span>, <span class="number">210</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366200000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366200000</span>L, (<span class="number">1510366200000</span>L, <span class="string">"BeiJing"</span>, <span class="number">33</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366200000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510373400000</span>L, (<span class="number">1510373400000</span>L, <span class="string">"ShangHai"</span>, <span class="number">129</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510373400000</span>L)))</span><br><span class="line"></span><br><span class="line"><span class="comment">// 页面访问表数据3</span></span><br><span class="line"><span class="keyword">val</span> pageAccessSession_data = <span class="type">Seq</span>(</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365660000</span>L, (<span class="number">1510365660000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0011"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365660000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365720000</span>L, (<span class="number">1510365720000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0012"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365720000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365720000</span>L, (<span class="number">1510365720000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0013"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365720000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510365900000</span>L, (<span class="number">1510365900000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0015"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510365900000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366200000</span>L, (<span class="number">1510366200000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0011"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366200000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366200000</span>L, (<span class="number">1510366200000</span>L, <span class="string">"BeiJing"</span>, <span class="string">"U2010"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366200000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510366260000</span>L, (<span class="number">1510366260000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0011"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510366260000</span>L)),</span><br><span class="line"><span class="type">Left</span>((<span class="number">1510373760000</span>L, (<span class="number">1510373760000</span>L, <span class="string">"ShangHai"</span>, <span class="string">"U0410"</span>))),</span><br><span class="line"><span class="type">Right</span>((<span class="number">1510373760000</span>L)))</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">procTimePrint</span></span>(sql: <span class="type">String</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// Streaming 环境</span></span><br><span class="line">    <span class="keyword">val</span> env = <span class="type">StreamExecutionEnvironment</span>.getExecutionEnvironment</span><br><span class="line">    <span class="keyword">val</span> tEnv = <span class="type">TableEnvironment</span>.getTableEnvironment(env)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 将order_tab, customer_tab 注册到catalog</span></span><br><span class="line">    <span class="keyword">val</span> customer = env.fromCollection(customer_data).toTable(tEnv).as(<span class="symbol">'c_id</span>, <span class="symbol">'c_name</span>, <span class="symbol">'c_desc</span>)</span><br><span class="line">    <span class="keyword">val</span> order = env.fromCollection(order_data).toTable(tEnv).as(<span class="symbol">'o_id</span>, <span class="symbol">'c_id</span>, <span class="symbol">'o_time</span>, <span class="symbol">'o_desc</span>)</span><br><span class="line"></span><br><span class="line">    tEnv.registerTable(<span class="string">"order_tab"</span>, order)</span><br><span class="line">    tEnv.registerTable(<span class="string">"customer_tab"</span>, customer)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> result = tEnv.sqlQuery(sql).toRetractStream[<span class="type">Row</span>]</span><br><span class="line">    <span class="keyword">val</span> sink = <span class="keyword">new</span> <span class="type">RetractingSink</span></span><br><span class="line">    result.addSink(sink)</span><br><span class="line">    env.execute()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">rowTimePrint</span></span>(sql: <span class="type">String</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// Streaming 环境</span></span><br><span class="line">    <span class="keyword">val</span> env = <span class="type">StreamExecutionEnvironment</span>.getExecutionEnvironment</span><br><span class="line">    env.setStreamTimeCharacteristic(<span class="type">TimeCharacteristic</span>.<span class="type">EventTime</span>)</span><br><span class="line">    env.setStateBackend(getStateBackend)</span><br><span class="line">    env.setParallelism(<span class="number">1</span>)</span><br><span class="line">    <span class="keyword">val</span> tEnv = <span class="type">TableEnvironment</span>.getTableEnvironment(env)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 将item_tab, pageAccess_tab 注册到catalog</span></span><br><span class="line">    <span class="keyword">val</span> item =</span><br><span class="line">    env.addSource(<span class="keyword">new</span> <span class="type">EventTimeSourceFunction</span>[(<span class="type">Long</span>, <span class="type">Int</span>, <span class="type">String</span>, <span class="type">String</span>)](item_data))</span><br><span class="line">    .toTable(tEnv, <span class="symbol">'onSellTime</span>, <span class="symbol">'price</span>, <span class="symbol">'itemID</span>, <span class="symbol">'itemType</span>, <span class="symbol">'rowtime</span>.rowtime)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> pageAccess =</span><br><span class="line">    env.addSource(<span class="keyword">new</span> <span class="type">EventTimeSourceFunction</span>[(<span class="type">Long</span>, <span class="type">String</span>, <span class="type">String</span>)](pageAccess_data))</span><br><span class="line">    .toTable(tEnv, <span class="symbol">'accessTime</span>, <span class="symbol">'region</span>, <span class="symbol">'userId</span>, <span class="symbol">'rowtime</span>.rowtime)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> pageAccessCount =</span><br><span class="line">    env.addSource(<span class="keyword">new</span> <span class="type">EventTimeSourceFunction</span>[(<span class="type">Long</span>, <span class="type">String</span>, <span class="type">Int</span>)](pageAccessCount_data))</span><br><span class="line">    .toTable(tEnv, <span class="symbol">'accessTime</span>, <span class="symbol">'region</span>, <span class="symbol">'accessCount</span>, <span class="symbol">'rowtime</span>.rowtime)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> pageAccessSession =</span><br><span class="line">    env.addSource(<span class="keyword">new</span> <span class="type">EventTimeSourceFunction</span>[(<span class="type">Long</span>, <span class="type">String</span>, <span class="type">String</span>)](pageAccessSession_data))</span><br><span class="line">    .toTable(tEnv, <span class="symbol">'accessTime</span>, <span class="symbol">'region</span>, <span class="symbol">'userId</span>, <span class="symbol">'rowtime</span>.rowtime)</span><br><span class="line"></span><br><span class="line">    tEnv.registerTable(<span class="string">"item_tab"</span>, item)</span><br><span class="line">    tEnv.registerTable(<span class="string">"pageAccess_tab"</span>, pageAccess)</span><br><span class="line">    tEnv.registerTable(<span class="string">"pageAccessCount_tab"</span>, pageAccessCount)</span><br><span class="line">    tEnv.registerTable(<span class="string">"pageAccessSession_tab"</span>, pageAccessSession)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> result = tEnv.sqlQuery(sql).toRetractStream[<span class="type">Row</span>]</span><br><span class="line">    <span class="keyword">val</span> sink = <span class="keyword">new</span> <span class="type">RetractingSink</span></span><br><span class="line">    result.addSink(sink)</span><br><span class="line">    env.execute()</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Test</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">testSelect</span></span>(): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> sql = <span class="string">"替换想要测试的SQL"</span></span><br><span class="line">    <span class="comment">// 非window 相关用 procTimePrint(sql)</span></span><br><span class="line">    <span class="comment">// Window 相关用 rowTimePrint(sql)</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 自定义Sink</span></span><br><span class="line"><span class="keyword">final</span> <span class="class"><span class="keyword">class</span> <span class="title">RetractingSink</span> <span class="keyword">extends</span> <span class="title">RichSinkFunction</span>[(<span class="type">Boolean</span>, <span class="type">Row</span>)] </span>&#123;</span><br><span class="line">    <span class="keyword">var</span> retractedResults: <span class="type">ArrayBuffer</span>[<span class="type">String</span>] = mutable.<span class="type">ArrayBuffer</span>.empty[<span class="type">String</span>]</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">invoke</span></span>(v: (<span class="type">Boolean</span>, <span class="type">Row</span>)) &#123;</span><br><span class="line">    retractedResults.synchronized &#123;</span><br><span class="line">    <span class="keyword">val</span> value = v._2.toString</span><br><span class="line">    <span class="keyword">if</span> (v._1) &#123;</span><br><span class="line">    retractedResults += value</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">val</span> idx = retractedResults.indexOf(value)</span><br><span class="line">    <span class="keyword">if</span> (idx &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">    retractedResults.remove(idx)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="type">RuntimeException</span>(<span class="string">"Tried to retract a value that wasn't added first. "</span> +</span><br><span class="line">    <span class="string">"This is probably an incorrectly implemented test. "</span> +</span><br><span class="line">    <span class="string">"Try to set the parallelism of the sink to 1."</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    retractedResults.sorted.foreach(println(_))</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Water mark 生成器</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">EventTimeSourceFunction</span>[<span class="type">T</span>](<span class="params"></span></span></span><br><span class="line"><span class="class"><span class="params">dataWithTimestampList: <span class="type">Seq</span>[<span class="type">Either</span>[(<span class="type">Long</span>, <span class="type">T</span></span>), <span class="title">Long</span>]]) <span class="keyword">extends</span> <span class="title">SourceFunction</span>[<span class="type">T</span>] </span>&#123;</span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">run</span></span>(ctx: <span class="type">SourceContext</span>[<span class="type">T</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    dataWithTimestampList.foreach &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="type">Left</span>(t) =&gt; ctx.collectWithTimestamp(t._2, t._1)</span><br><span class="line">    <span class="keyword">case</span> <span class="type">Right</span>(w) =&gt; ctx.emitWatermark(<span class="keyword">new</span> <span class="type">Watermark</span>(w))</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">cancel</span></span>(): <span class="type">Unit</span> = ???</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Select"><a href="#Select" class="headerlink" title="Select"></a>Select</h2><p>SELECT 用于从数据集/流中选择数据，语法遵循ANSI-SQL标准，语义是关系代数中的投影(Projection),对关系进行垂直分割，消去某</p>
+<p>些列, 如下图所示:</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNibZ25Mic3yIbEcG8icTWkkJiaMcTr5oq0wTkT7rdZ5EkUpXEp26ZKVTrKw/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>SQL 示例</strong></p>
+<p>从<code>customer_tab</code>选择用户姓名，并用内置的CONCAT函数拼接客户信息，如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> c_name, <span class="keyword">CONCAT</span>(c_name, <span class="string">' come '</span>, c_desc) <span class="keyword">as</span> <span class="keyword">desc</span> <span class="keyword">FROM</span> customer_tab;</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下：</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_name</th>
+<th>desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kevin</td>
+<td>Kevin come from JinLin</td>
+</tr>
+<tr>
+<td>Sunny</td>
+<td>Sunny come from JinLin</td>
+</tr>
+<tr>
+<td>Jincheng</td>
+<td>Jincheng come from HeBei</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p>大家看到在 <code>SELECT</code> 不仅可以使用普通的字段选择，还可以使用<code>ScalarFunction</code>,当然也包括<code>User-Defined Function</code>，同时还可以进行字段的<code>alias</code>设置。其实<code>SELECT</code>可以结合聚合，在GROUPBY部分会进行介绍,一个比较特殊的使用场景是携带 <code>DISTINCT</code> 关键字，示例如下：</p>
+<p><strong>SQL 示例</strong></p>
+<p>在订单表查询所有的客户id，消除重复客户id, 如下：</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="keyword">DISTINCT</span> c_id <span class="keyword">FROM</span> order_tab;</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+</tr>
+<tr>
+<td>c_002</td>
+</tr>
+</tbody></table>
+<h2 id="WHERE"><a href="#WHERE" class="headerlink" title="WHERE"></a>WHERE</h2><figure class="highlight vbnet"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">WHERE</span> 用于从数据集/流中过滤数据，与<span class="keyword">SELECT</span>一起使用，语法遵循<span class="keyword">ANSI</span>-SQL标准，语义是关系代数的Selection，根据某些条件对关系做水平分割，即选择符合条件的记录，如下所示：</span><br></pre></td></tr></table></figure>
+
+<p><strong>SQL 示例</strong></p>
+<p>在<code>customer_tab</code>查询客户id为<code>c_001</code>和<code>c_003</code>的客户信息，如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc <span class="keyword">FROM</span> customer_tab <span class="keyword">WHERE</span> c_id = <span class="string">'c_001'</span> <span class="keyword">OR</span> c_id = <span class="string">'c_003'</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Result</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p>我们发现<code>WHERE</code>是对满足一定条件的数据进行过滤，<code>WHERE</code>支持=, &lt;, &gt;, &lt;&gt;, &gt;=, &lt;=以及<code>AND</code>， <code>OR</code>等表达式的组合，最终满足过滤条件的数据会被选择出来。并且 <code>WHERE</code> 可以结合<code>IN</code>,<code>NOT IN</code>联合使用，具体如下：</p>
+<p><strong>SQL 示例 (IN 常量)</strong></p>
+<p>使用 <code>IN</code> 在<code>customer_tab</code>查询客户id为<code>c_001</code>和<code>c_003</code>的客户信息，如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc <span class="keyword">FROM</span> customer_tab <span class="keyword">WHERE</span> c_id <span class="keyword">IN</span> (<span class="string">'c_001'</span>, <span class="string">'c_003'</span>);</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+</tr>
+</tbody></table>
+<p><strong>SQL 示例 (IN 子查询)</strong></p>
+<p>使用 <code>IN</code>和 子查询 在<code>customer_tab</code>查询已经下过订单的客户信息，如下：</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc <span class="keyword">FROM</span> customer_tab <span class="keyword">WHERE</span> c_id <span class="keyword">IN</span> (<span class="keyword">SELECT</span> c_id <span class="keyword">FROM</span> order_tab);</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+</tr>
+</tbody></table>
+<p><strong>IN/NOT IN 与关系代数</strong></p>
+<p>如上介绍IN是关系代数中的Intersection， NOT IN是关系代数的Difference， 如下图示意：</p>
+<ul>
+<li>IN(Intersection</li>
+<li><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NZSOY21trjlOtCxGBVOiblp6icardxtCKeaf7RHrFbN6TVbyqyGOGuSWYY7uY3DJb5ODYsOqvv1mWQ/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="img"></li>
+<li>NOT IN(Difference）</li>
+<li><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NZSOY21trjlOtCxGBVOiblpcofHeFia7icQorYjiaGmHO9yiclrFaMCk3l6sBuQa2sm5QlrtepLOrdIMA/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="img"></li>
+</ul>
+<h2 id="GROUP-BY"><a href="#GROUP-BY" class="headerlink" title="GROUP BY"></a>GROUP BY</h2><p>GROUP BY 是对数据进行分组的操作，比如我需要分别计算一下一个学生表里面女生和男生的人数分别是多少，如下</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NZSOY21trjlOtCxGBVOiblpoeicHXKPbhnpAKEe8cMRzf4WHDQiagwAHRIlH6icqn107hHkiaeJh2CWDQ/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="img"></p>
+<p><strong>SQL 示例</strong></p>
+<p>将order_tab信息按customer_tab分组统计订单数量，简单示例如下：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT c_id, count(o_id) as o_count <span class="keyword">FROM</span> order_tab<span class="built_in"> GROUP </span>BY c_id;</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>o_count</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>2</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p>在实际的业务场景中，GROUP BY除了按业务字段进行分组外，很多时候用户也可以用时间来进行分组(相当于划分窗口)，比如统计每分钟的订单数量：</p>
+<p><strong>SQL 示例</strong></p>
+<p>按时间进行分组，查询每分钟的订单数量，如下：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT SUBSTRING(o_time, 1, 16) AS o_time_min, count(o_id) AS o_count <span class="keyword">FROM</span> order_tab<span class="built_in"> GROUP </span>BY SUBSTRING(o_time, 1, 16)</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>o_time_min</th>
+<th>o_count</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2018-11-05 10:01</td>
+<td>2</td>
+</tr>
+<tr>
+<td>2018-11-05 10:03</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<p>说明：如果我们时间字段是timestamp类型，建议使用内置的 <code>DATE_FORMAT</code> 函数。</p>
+<h2 id="UNION-ALL"><a href="#UNION-ALL" class="headerlink" title="UNION ALL"></a>UNION ALL</h2><p>UNION ALL 将两个表合并起来，要求两个表的字段完全一致，包括字段类型、字段顺序,语义对应关系代数的Union，只是关系代数是Set集合操作，会有去重复操作，UNION ALL 不进行去重，如下所示：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNpaHuv6VYq4P9Zyke2cuHCIwibTbicJpXicRJWemZsJN6Y1Nq3vKVNzpNg/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>SQL 示例</strong></p>
+<p>我们简单的将<code>customer_tab</code>查询2次，将查询结果合并起来，如下：</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc  <span class="keyword">FROM</span> customer_tab </span><br><span class="line"><span class="keyword">UNION</span> <span class="keyword">ALL</span> </span><br><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc  <span class="keyword">FROM</span> customer_tab</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+</tr>
+<tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p>UNION ALL 对结果数据不进行去重，如果想对结果数据进行去重，传统数据库需要进行UNION操作。</p>
+<h2 id="UNION"><a href="#UNION" class="headerlink" title="UNION"></a>UNION</h2><p>UNION 将两个流给合并起来，要求两个流的字段完全一致，包括字段类型、字段顺序，并其UNION 不同于UNION ALL，UNION会对结果数据去重,与关系代数的Union语义一致，如下：<br><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNALmfI36VBMGEontFaDkRleLsSbErPHtRYvT0dBQ4ic6kwQD3AEJIhfQ/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>SQL 示例</strong></p>
+<p>我们简单的将<code>customer_tab</code>查询2次，将查询结果合并起来，如下：</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc  <span class="keyword">FROM</span> customer_tab </span><br><span class="line"><span class="keyword">UNION</span> </span><br><span class="line"><span class="keyword">SELECT</span> c_id, c_name, c_desc  <span class="keyword">FROM</span> customer_tab</span><br></pre></td></tr></table></figure>
+
+<p>我们发现完全一样的表数据进行 <code>UNION</code>之后，数据是被去重的，<code>UNION</code>之后的数据并没有增加。</p>
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p>UNION 对结果数据进行去重，在实际的实现过程需要对数据进行排序操作，所以非必要去重情况请使用UNION ALL操作。</p>
+<h2 id="JOIN"><a href="#JOIN" class="headerlink" title="JOIN"></a>JOIN</h2><p>JOIN 用于把来自两个表的行联合起来形成一个宽表，Apache Flink支持的JOIN类型：</p>
+<ul>
+<li>JOIN - INNER JOIN</li>
+<li>LEFT JOIN - LEFT OUTER JOIN</li>
+<li>RIGHT JOIN - RIGHT OUTER JOIN</li>
+<li>FULL JOIN - FULL OUTER JOIN</li>
+</ul>
+<p>JOIN与关系代数的Join语义相同，具体如下：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvN8qxel16siciaMAH8x3aQCcZ6q0ic8QrtZtco3D9frZFjHfZYj4q33hszg/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>SQL 示例 (JOIN)</strong></p>
+<p><code>INNER JOIN</code>只选择满足<code>ON</code>条件的记录，我们查询<code>customer_tab</code> 和 <code>order_tab</code>表，将有订单的客户和订单信息选择出来，如下：</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> customer_tab <span class="keyword">AS</span> c <span class="keyword">JOIN</span> order_tab <span class="keyword">AS</span> o <span class="keyword">ON</span> o.c_id = c.c_id</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+<th>o_id</th>
+<th>c_id</th>
+<th>o_time</th>
+<th>o_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+<td>o_002</td>
+<td>c_001</td>
+<td>2018-11-05 10:01:55</td>
+<td>ipad</td>
+</tr>
+<tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+<td>o_003</td>
+<td>c_001</td>
+<td>2018-11-05 10:03:44</td>
+<td>flink book</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+<td>o_oo1</td>
+<td>c_002</td>
+<td>2018-11-05 10:01:01</td>
+<td>iphone</td>
+</tr>
+</tbody></table>
+<p><strong>SQL 示例 (LEFT JOIN)</strong></p>
+<p><code>LEFT JOIN</code>与<code>INNER JOIN</code>的区别是当右表没有与左边相JOIN的数据时候，右边对应的字段补<code>NULL</code>输出，语义如下：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNLcrI9iar3vKlgxMwRceIAMCZm2uNbhUWINhK1yRAllPdkwVJ1PcHhqQ/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p>对应的SQL语句如下(LEFT JOIN)：</p>
+<figure class="highlight mipsasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT ColA, ColB, <span class="built_in">T2</span>.ColC, ColE FROM TI LEFT <span class="keyword">JOIN </span><span class="built_in">T2</span> ON <span class="built_in">T1</span>.ColC = <span class="built_in">T2</span>.ColC <span class="comment">;</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>细心的读者可能发现上面T2.ColC是添加了前缀T2了，这里需要说明一下，当两张表有字段名字一样的时候，我需要指定是从那个表里面投影的。</li>
+</ul>
+<p>我们查询<code>customer_tab</code> 和 <code>order_tab</code>表，将客户和订单信息选择出来如下：</p>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> customer_tab <span class="keyword">AS</span> c <span class="keyword">LEFT</span> <span class="keyword">JOIN</span> order_tab <span class="keyword">AS</span> o <span class="keyword">ON</span> o.c_id = c.c_id</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>c_id</th>
+<th>c_name</th>
+<th>c_desc</th>
+<th>o_id</th>
+<th>c_id</th>
+<th>o_time</th>
+<th>o_desc</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+<td>o_002</td>
+<td>c_001</td>
+<td>2018-11-05 10:01:55</td>
+<td>ipad</td>
+</tr>
+<tr>
+<td>c_001</td>
+<td>Kevin</td>
+<td>from JinLin</td>
+<td>o_003</td>
+<td>c_001</td>
+<td>2018-11-05 10:03:44</td>
+<td>flink book</td>
+</tr>
+<tr>
+<td>c_002</td>
+<td>Sunny</td>
+<td>from JinLin</td>
+<td>o_oo1</td>
+<td>c_002</td>
+<td>2018-11-05 10:01:01</td>
+<td>iphone</td>
+</tr>
+<tr>
+<td>c_003</td>
+<td>JinCheng</td>
+<td>from HeBei</td>
+<td>NULL</td>
+<td>NULL</td>
+<td>NULL</td>
+<td>NULL</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p><code>RIGHT JOIN</code> 相当于 <code>LEFT JOIN</code> 左右两个表交互一下位置。<code>FULL JOIN</code>相当于 <code>RIGHT JOIN</code> 和 <code>LEFT JOIN</code> 之后进行<code>UNION ALL</code>操作。</p>
+<h2 id="Window"><a href="#Window" class="headerlink" title="Window"></a>Window</h2><p>在Apache Flink中有2种类型的Window，一种是OverWindow，即传统数据库的标准开窗，每一个元素都对应一个窗口。一种是GroupWindow，目前在SQL中GroupWindow都是基于时间进行窗口划分的。</p>
+<h3 id="Over-Window"><a href="#Over-Window" class="headerlink" title="Over Window"></a>Over Window</h3><p>Apache Flink中对OVER Window的定义遵循标准SQL的定义语法。<br>按ROWS和RANGE分类是传统数据库的标准分类方法，在Apache Flink中还可以根据时间类型(ProcTime/EventTime)和窗口的有限和无限(Bounded/UnBounded)进行分类，共计8种类型。为了避免大家对过细分类造成困扰，我们按照确定当前行的不同方式将OVER Window分成两大类进行介绍，如下:</p>
+<ul>
+<li>ROWS OVER Window - 每一行元素都视为新的计算行，即，每一行都是一个新的窗口。</li>
+<li>RANGE OVER Window - 具有相同时间值的所有元素行视为同一计算行，即，具有相同时间值的所有行都是同一个窗口。</li>
+</ul>
+<h4 id="Bounded-ROWS-OVER-Window"><a href="#Bounded-ROWS-OVER-Window" class="headerlink" title="Bounded ROWS OVER Window"></a>Bounded ROWS OVER Window</h4><p>Bounded ROWS OVER Window 每一行元素都视为新的计算行，即，每一行都是一个新的窗口。</p>
+<p><strong>语义</strong></p>
+<p>我们以3个元素(2 PRECEDING)的窗口为例，如下图:</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvN6yotUibfmTVgbnFd7dvC4tgfFEddh0xJ6PzC9wzLDgiaemZoCCjVNxaw/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p>上图所示窗口 user 1 的 w5和w6， user 2的 窗口 w2 和 w3，虽然有元素都是同一时刻到达，但是他们仍然是在不同的窗口，这一点有别于RANGE OVER Window。</p>
+<p><strong>语法</strong></p>
+<p>Bounded ROWS OVER Window 语法如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> </span><br><span class="line">    agg1(col1) <span class="keyword">OVER</span>(</span><br><span class="line">     [<span class="keyword">PARTITION</span> <span class="keyword">BY</span> (value_expression1,..., value_expressionN)] </span><br><span class="line">     <span class="keyword">ORDER</span> <span class="keyword">BY</span> timeCol</span><br><span class="line">     <span class="keyword">ROWS</span> </span><br><span class="line">     <span class="keyword">BETWEEN</span> (<span class="keyword">UNBOUNDED</span> | rowCount) <span class="keyword">PRECEDING</span> <span class="keyword">AND</span> <span class="keyword">CURRENT</span> <span class="keyword">ROW</span>) <span class="keyword">AS</span> colName, </span><br><span class="line">... </span><br><span class="line"><span class="keyword">FROM</span> Tab1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>value_expression - 进行分区的字表达式；</li>
+<li>timeCol - 用于元素排序的时间字段；</li>
+<li>rowCount - 是定义根据当前行开始向前追溯几行元素。</li>
+</ul>
+<p><strong>SQL 示例</strong></p>
+<p>利用<code>item_tab</code>测试数据，我们统计同类商品中当前和当前商品之前2个商品中的最高价格。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span>  </span><br><span class="line">    itemID,</span><br><span class="line">    itemType, </span><br><span class="line">    onSellTime, </span><br><span class="line">    price,  </span><br><span class="line">    <span class="keyword">MAX</span>(price) <span class="keyword">OVER</span> (</span><br><span class="line">        <span class="keyword">PARTITION</span> <span class="keyword">BY</span> itemType </span><br><span class="line">        <span class="keyword">ORDER</span> <span class="keyword">BY</span> onSellTime </span><br><span class="line">        <span class="keyword">ROWS</span> <span class="keyword">BETWEEN</span> <span class="number">2</span> <span class="keyword">preceding</span> <span class="keyword">AND</span> <span class="keyword">CURRENT</span> <span class="keyword">ROW</span>) <span class="keyword">AS</span> maxPrice</span><br><span class="line">  <span class="keyword">FROM</span> item_tab</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>itemID</th>
+<th>itemType</th>
+<th>onSellTime</th>
+<th>price</th>
+<th>maxPrice</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ITEM001</td>
+<td>Electronic</td>
+<td>2017-11-11 10:01:00</td>
+<td>20</td>
+<td>20</td>
+</tr>
+<tr>
+<td>ITEM002</td>
+<td>Electronic</td>
+<td>2017-11-11 10:02:00</td>
+<td>50</td>
+<td>50</td>
+</tr>
+<tr>
+<td>ITEM003</td>
+<td>Electronic</td>
+<td>2017-11-11 10:03:00</td>
+<td>30</td>
+<td>50</td>
+</tr>
+<tr>
+<td>ITEM004</td>
+<td>Electronic</td>
+<td>2017-11-11 10:03:00</td>
+<td>60</td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM005</td>
+<td>Electronic</td>
+<td>2017-11-11 10:05:00</td>
+<td>40</td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM006</td>
+<td>Electronic</td>
+<td>2017-11-11 10:06:00</td>
+<td>20</td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM007</td>
+<td>Electronic</td>
+<td>2017-11-11 10:07:00</td>
+<td>70</td>
+<td>70</td>
+</tr>
+<tr>
+<td>ITEM008</td>
+<td>Clothes</td>
+<td>2017-11-11 10:08:00</td>
+<td>20</td>
+<td>20</td>
+</tr>
+</tbody></table>
+<h4 id="Bounded-RANGE-OVER-Window"><a href="#Bounded-RANGE-OVER-Window" class="headerlink" title="Bounded RANGE OVER Window"></a>Bounded RANGE OVER Window</h4><p>Bounded RANGE OVER Window 具有相同时间值的所有元素行视为同一计算行，即，具有相同时间值的所有行都是同一个窗口。</p>
+<p><strong>语义</strong></p>
+<p>我们以3秒中数据(INTERVAL ‘2’ SECOND)的窗口为例，如下图：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNTtvBlDvT0wfxJvTOL8e9CbVJg6YVxAfLMKskjXibicrCeOGgIZxAJxdw/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p>注意: 上图所示窗口 user 1 的 w6， user 2的 窗口 w3，元素都是同一时刻到达,他们是在同一个窗口，这一点有别于ROWS OVER Window。</p>
+<p><strong>语法</strong></p>
+<p>Bounded RANGE OVER Window的语法如下：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> </span><br><span class="line">    agg1(col1) <span class="keyword">OVER</span>(</span><br><span class="line">     [<span class="keyword">PARTITION</span> <span class="keyword">BY</span> (value_expression1,..., value_expressionN)] </span><br><span class="line">     <span class="keyword">ORDER</span> <span class="keyword">BY</span> timeCol</span><br><span class="line">     <span class="keyword">RANGE</span> </span><br><span class="line">     <span class="keyword">BETWEEN</span> (<span class="keyword">UNBOUNDED</span> | timeInterval) <span class="keyword">PRECEDING</span> <span class="keyword">AND</span> <span class="keyword">CURRENT</span> <span class="keyword">ROW</span>) <span class="keyword">AS</span> colName, </span><br><span class="line">... </span><br><span class="line"><span class="keyword">FROM</span> Tab1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>value_expression - 进行分区的字表达式；</li>
+<li>timeCol - 用于元素排序的时间字段；</li>
+<li>timeInterval - 是定义根据当前行开始向前追溯指定时间的元素行；</li>
+</ul>
+<p><strong>SQL 示例</strong></p>
+<p>我们统计同类商品中当前和当前商品之前2分钟商品中的最高价格。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span>  </span><br><span class="line">    itemID,</span><br><span class="line">    itemType, </span><br><span class="line">    onSellTime, </span><br><span class="line">    price,  </span><br><span class="line">    <span class="keyword">MAX</span>(price) <span class="keyword">OVER</span> (</span><br><span class="line">        <span class="keyword">PARTITION</span> <span class="keyword">BY</span> itemType </span><br><span class="line">        <span class="keyword">ORDER</span> <span class="keyword">BY</span> rowtime </span><br><span class="line">        <span class="keyword">RANGE</span> <span class="keyword">BETWEEN</span> <span class="built_in">INTERVAL</span> <span class="string">'2'</span> <span class="keyword">MINUTE</span> <span class="keyword">preceding</span> <span class="keyword">AND</span> <span class="keyword">CURRENT</span> <span class="keyword">ROW</span>) <span class="keyword">AS</span> maxPrice</span><br><span class="line">  <span class="keyword">FROM</span> item_tab</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下（Bounded RANGE OVER Windo</strong>w）</p>
+<table>
+<thead>
+<tr>
+<th>itemID</th>
+<th>itemType</th>
+<th>onSellTime</th>
+<th>price</th>
+<th>maxPrice</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ITEM001</td>
+<td>Electronic</td>
+<td>2017-11-11 10:01:00</td>
+<td>20</td>
+<td>20</td>
+</tr>
+<tr>
+<td>ITEM002</td>
+<td>Electronic</td>
+<td>2017-11-11 10:02:00</td>
+<td>50</td>
+<td>50</td>
+</tr>
+<tr>
+<td>ITEM003</td>
+<td>Electronic</td>
+<td>2017-11-11 10:03:00</td>
+<td>30</td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM004</td>
+<td>Electronic</td>
+<td>2017-11-11 10:03:00</td>
+<td>60</td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM005</td>
+<td>Electronic</td>
+<td>2017-11-11 10:05:00</td>
+<td>40</td>
+<td>60</td>
+</tr>
+<tr>
+<td>ITEM006</td>
+<td>Electronic</td>
+<td>2017-11-11 10:06:00</td>
+<td>20</td>
+<td>40</td>
+</tr>
+<tr>
+<td>ITEM007</td>
+<td>Electronic</td>
+<td>2017-11-11 10:07:00</td>
+<td>70</td>
+<td>70</td>
+</tr>
+<tr>
+<td>ITEM008</td>
+<td>Clothes</td>
+<td>2017-11-11 10:08:00</td>
+<td>20</td>
+<td>20</td>
+</tr>
+</tbody></table>
+<p><strong>特别说明</strong></p>
+<p>OverWindow最重要是要理解每一行数据都确定一个窗口，同时目前在Apache Flink中只支持按时间字段排序。并且OverWindow开窗与GroupBy方式数据分组最大的不同在于，GroupBy数据分组统计时候，在<code>SELECT</code>中除了GROUP BY的key，不能直接选择其他非key的字段，但是OverWindow没有这个限制，<code>SELECT</code>可以选择任何字段。比如一张表table(a,b,c,d)4个字段，如果按d分组求c的最大值，两种写完如下:</p>
+<ul>
+<li>GROUP BY - <code>SELECT d, MAX(c) FROM table GROUP BY d</code></li>
+<li>OVER Window = <code>SELECT a, b, c, d, MAX(c) OVER(PARTITION BY d, ORDER BY ProcTime())</code><br>如上 OVER Window 虽然PARTITION BY d,但SELECT 中仍然可以选择 a,b,c字段。但在GROUPBY中，SELECT 只能选择 d 字段。</li>
+</ul>
+<h3 id="Group-Window"><a href="#Group-Window" class="headerlink" title="Group Window"></a>Group Window</h3><p>根据窗口数据划分的不同，目前Apache Flink有如下3种Bounded Winodw:</p>
+<ul>
+<li>Tumble - 滚动窗口，窗口数据有固定的大小，窗口数据无叠加；</li>
+<li>Hop - 滑动窗口，窗口数据有固定大小，并且有固定的窗口重建频率，窗口数据有叠加；</li>
+<li>Session - 会话窗口，窗口数据没有固定的大小，根据窗口数据活跃程度划分窗口，窗口数据无叠加。</li>
+</ul>
+<p>说明： Aapche Flink 还支持UnBounded的 Group Window，也就是全局Window，流上所有数据都在一个窗口里面，语义非常简单，这里不做详细介绍了。</p>
+<h4 id="Tumble"><a href="#Tumble" class="headerlink" title="Tumble"></a>Tumble</h4><p><strong>语义</strong></p>
+<p>Tumble 滚动窗口有固定size，窗口数据不重叠,具体语义如下：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvN9PPeHiaOUQib8BG2xs3YPxpN8EYibnRNkFxgicW1kPrNeicE8vpcUB7tspA/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>语法</strong></p>
+<p>Tumble 滚动窗口对应的语法如下：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">SELECT </span><br><span class="line">    [gk],</span><br><span class="line">    [TUMBLE_START(timeCol, size)], </span><br><span class="line">    [TUMBLE_END(timeCol, size)], </span><br><span class="line">    agg1(col1), </span><br><span class="line">    <span class="built_in">..</span>. </span><br><span class="line">    aggn(colN)</span><br><span class="line"><span class="keyword">FROM</span> Tab1</span><br><span class="line">GROUP BY [gk], TUMBLE(timeCol, size)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>[gk] - 决定了流是Keyed还是/Non-Keyed;</li>
+<li>TUMBLE_START - 窗口开始时间;</li>
+<li>TUMBLE_END - 窗口结束时间;</li>
+<li>timeCol - 是流表中表示时间字段；</li>
+<li>size - 表示窗口的大小，如 秒，分钟，小时，天。</li>
+</ul>
+<p><strong>SQL 示例</strong></p>
+<p>利用<code>pageAccess_tab</code>测试数据，我们需要按不同地域统计每2分钟的淘宝首页的访问量(PV)。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span>  </span><br><span class="line">    region,</span><br><span class="line">    TUMBLE_START(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'2'</span> <span class="keyword">MINUTE</span>) <span class="keyword">AS</span> winStart,  </span><br><span class="line">    TUMBLE_END(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'2'</span> <span class="keyword">MINUTE</span>) <span class="keyword">AS</span> winEnd,  </span><br><span class="line">    <span class="keyword">COUNT</span>(region) <span class="keyword">AS</span> pv</span><br><span class="line"><span class="keyword">FROM</span> pageAccess_tab </span><br><span class="line"><span class="keyword">GROUP</span> <span class="keyword">BY</span> region, TUMBLE(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'2'</span> <span class="keyword">MINUTE</span>)</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>winStart</th>
+<th>winEnd</th>
+<th>pv</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BeiJing</td>
+<td>2017-11-11 02:00:00.0</td>
+<td>2017-11-11 02:02:00.0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>2017-11-11 02:10:00.0</td>
+<td>2017-11-11 02:12:00.0</td>
+<td>2</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 02:00:00.0</td>
+<td>2017-11-11 02:02:00.0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 04:10:00.0</td>
+<td>2017-11-11 04:12:00.0</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<h4 id="Hop"><a href="#Hop" class="headerlink" title="Hop"></a>Hop</h4><p>Hop 滑动窗口和滚动窗口类似，窗口有固定的size，与滚动窗口不同的是滑动窗口可以通过slide参数控制滑动窗口的新建频率。因此当slide值小于窗口size的值的时候多个滑动窗口会重叠。</p>
+<p><strong>语义</strong></p>
+<p>Hop 滑动窗口语义如下所示：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNCwyBicMTKEicSxibebwTfwvImiaA2TlN0FuM0wuG6zAibYyk5JrfBTmrwEA/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>语法</strong></p>
+<p>Hop 滑动窗口对应语法如下：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">SELECT </span><br><span class="line">    [gk], </span><br><span class="line">    [HOP_START(timeCol, slide, size)] ,  </span><br><span class="line">    [HOP_END(timeCol, slide, size)],</span><br><span class="line">    agg1(col1), </span><br><span class="line">    <span class="built_in">..</span>. </span><br><span class="line">    aggN(colN) </span><br><span class="line"><span class="keyword">FROM</span> Tab1</span><br><span class="line">GROUP BY [gk], HOP(timeCol, slide, size)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>[gk] 决定了流是Keyed还是/Non-Keyed;</li>
+<li>HOP_START - 窗口开始时间;</li>
+<li>HOP_END - 窗口结束时间;</li>
+<li>timeCol - 是流表中表示时间字段；</li>
+<li>slide - 是滑动步伐的大小；</li>
+<li>size - 是窗口的大小，如 秒，分钟，小时，天；</li>
+</ul>
+<p><strong>SQL 示例</strong></p>
+<p>利用<code>pageAccessCount_tab</code>测试数据，我们需要每5分钟统计近10分钟的页面访问量(PV).</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span>  </span><br><span class="line">  HOP_START(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'5'</span> <span class="keyword">MINUTE</span>, <span class="built_in">INTERVAL</span> <span class="string">'10'</span> <span class="keyword">MINUTE</span>) <span class="keyword">AS</span> winStart,  </span><br><span class="line">  HOP_END(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'5'</span> <span class="keyword">MINUTE</span>, <span class="built_in">INTERVAL</span> <span class="string">'10'</span> <span class="keyword">MINUTE</span>) <span class="keyword">AS</span> winEnd,  </span><br><span class="line">  <span class="keyword">SUM</span>(accessCount) <span class="keyword">AS</span> accessCount  </span><br><span class="line"><span class="keyword">FROM</span> pageAccessCount_tab </span><br><span class="line"><span class="keyword">GROUP</span> <span class="keyword">BY</span> HOP(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'5'</span> <span class="keyword">MINUTE</span>, <span class="built_in">INTERVAL</span> <span class="string">'10'</span> <span class="keyword">MINUTE</span>)</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>winStart</th>
+<th>winEnd</th>
+<th>accessCount</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2017-11-11 01:55:00.0</td>
+<td>2017-11-11 02:05:00.0</td>
+<td>186</td>
+</tr>
+<tr>
+<td>2017-11-11 02:00:00.0</td>
+<td>2017-11-11 02:10:00.0</td>
+<td>396</td>
+</tr>
+<tr>
+<td>2017-11-11 02:05:00.0</td>
+<td>2017-11-11 02:15:00.0</td>
+<td>243</td>
+</tr>
+<tr>
+<td>2017-11-11 02:10:00.0</td>
+<td>2017-11-11 02:20:00.0</td>
+<td>33</td>
+</tr>
+<tr>
+<td>2017-11-11 04:05:00.0</td>
+<td>2017-11-11 04:15:00.0</td>
+<td>129</td>
+</tr>
+<tr>
+<td>2017-11-11 04:10:00.0</td>
+<td>2017-11-11 04:20:00.0</td>
+<td>129</td>
+</tr>
+</tbody></table>
+<h4 id="Session"><a href="#Session" class="headerlink" title="Session"></a>Session</h4><p>Seeeion 会话窗口 是没有固定大小的窗口，通过session的活跃度分组元素。不同于滚动窗口和滑动窗口，会话窗口不重叠,也没有固定的起止时间。一个会话窗口在一段时间内没有接收到元素时，即当出现非活跃间隙时关闭。一个会话窗口 分配器通过配置session gap来指定非活跃周期的时长.</p>
+<p>语义</p>
+<p>Session 会话窗口语义如下所示：</p>
+<p><img src="https://mmbiz.qpic.cn/mmbiz_png/UdK9ByfMT2NJ7vfubd8agGwvHzRBngvNfhx9EQvp4OyBYHue50QEzW3qZfxeRV5DCb8CkcneoGjadj7NqNHq9w/640?tp=webp&wxfrom=5&wx_lazy=1&wx_co=1" alt="image"></p>
+<p><strong>语法</strong></p>
+<p>Seeeion 会话窗口对应语法如下：</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">SELECT </span><br><span class="line">    [gk], </span><br><span class="line">    SESSION_START(timeCol, gap) AS winStart,  </span><br><span class="line">    SESSION_END(timeCol, gap) AS winEnd,</span><br><span class="line">    agg1(col1),</span><br><span class="line">     <span class="built_in">..</span>. </span><br><span class="line">    aggn(colN)</span><br><span class="line"><span class="keyword">FROM</span> Tab1</span><br><span class="line">GROUP BY [gk], SESSION(timeCol, gap)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>[gk] 决定了流是Keyed还是/Non-Keyed;</li>
+<li>SESSION_START - 窗口开始时间；</li>
+<li>SESSION_END - 窗口结束时间；</li>
+<li>timeCol - 是流表中表示时间字段；</li>
+<li>gap - 是窗口数据非活跃周期的时长；</li>
+</ul>
+<p><strong>SQL 示例</strong></p>
+<p>利用<code>pageAccessSession_tab</code>测试数据，我们按地域统计连续的两个访问用户之间的访问时间间隔不超过3分钟的的页面访问量(PV).</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span>  </span><br><span class="line">    region, </span><br><span class="line">    SESSION_START(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'3'</span> <span class="keyword">MINUTE</span>) <span class="keyword">AS</span> winStart,  </span><br><span class="line">    SESSION_END(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'3'</span> <span class="keyword">MINUTE</span>) <span class="keyword">AS</span> winEnd, </span><br><span class="line">    <span class="keyword">COUNT</span>(region) <span class="keyword">AS</span> pv  </span><br><span class="line"><span class="keyword">FROM</span> pageAccessSession_tab</span><br><span class="line"><span class="keyword">GROUP</span> <span class="keyword">BY</span> region, <span class="keyword">SESSION</span>(rowtime, <span class="built_in">INTERVAL</span> <span class="string">'3'</span> <span class="keyword">MINUTE</span>)</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果如下</strong></p>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>winStart</th>
+<th>winEnd</th>
+<th>pv</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BeiJing</td>
+<td>2017-11-11 02:10:00.0</td>
+<td>2017-11-11 02:13:00.0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 02:01:00.0</td>
+<td>2017-11-11 02:08:00.0</td>
+<td>4</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 02:10:00.0</td>
+<td>2017-11-11 02:14:00.0</td>
+<td>2</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 04:16:00.0</td>
+<td>2017-11-11 04:19:00.0</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<h2 id="UDX"><a href="#UDX" class="headerlink" title="UDX"></a>UDX</h2><p>Apache Flink 除了提供了大部分ANSI-SQL的核心算子，也为用户提供了自己编写业务代码的机会，那就是User-Defined Function,目前支持如下三种 User-Defined Function：</p>
+<ul>
+<li>UDF - User-Defined Scalar Function</li>
+<li>UDTF - User-Defined Table Function</li>
+<li>UDAF - User-Defined Aggregate Funciton</li>
+</ul>
+<p>UDX都是用户自定义的函数，那么Apache Flink框架为啥将自定义的函数分成三类呢？是根据什么划分的呢？Apache Flink对自定义函数进行分类的依据是根据函数语义的不同，函数的输入和输出不同来分类的，具体如下：</p>
+<table>
+<thead>
+<tr>
+<th>UDX</th>
+<th>INPUT</th>
+<th>OUTPUT</th>
+<th>INPUT:OUTPUT</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>UDF</td>
+<td>单行中的N(N&gt;=0)列</td>
+<td>单行中的1列</td>
+<td>1:1</td>
+</tr>
+<tr>
+<td>UDTF</td>
+<td>单行中的N(N&gt;=0)列</td>
+<td>M(M&gt;=0)行</td>
+<td>1:N(N&gt;=0)</td>
+</tr>
+<tr>
+<td>UDAF</td>
+<td>M(M&gt;=0)行中的每行的N(N&gt;=0)列</td>
+<td>单行中的1列</td>
+<td>M：1(M&gt;=0)</td>
+</tr>
+</tbody></table>
+<h3 id="UDF"><a href="#UDF" class="headerlink" title="UDF"></a>UDF</h3><ul>
+<li>定义<br>用户想自己编写一个字符串联接的UDF，我们只需要实现<code>ScalarFunction#eval()</code>方法即可，简单实现如下：</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">object</span> <span class="title">MyConnect</span> <span class="keyword">extends</span> <span class="title">ScalarFunction</span> </span>&#123;</span><br><span class="line">  <span class="meta">@varargs</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">eval</span></span>(args: <span class="type">String</span>*): <span class="type">String</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> sb = <span class="keyword">new</span> <span class="type">StringBuilder</span></span><br><span class="line">    <span class="keyword">var</span> i = <span class="number">0</span></span><br><span class="line">    <span class="keyword">while</span> (i &lt; args.length) &#123;</span><br><span class="line">      <span class="keyword">if</span> (args(i) == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">null</span></span><br><span class="line">      &#125;</span><br><span class="line">      sb.append(args(i))</span><br><span class="line">      i += <span class="number">1</span></span><br><span class="line">    &#125;</span><br><span class="line">    sb.toString</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用</li>
+</ul>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">...</span><br><span class="line"> <span class="keyword">val</span> <span class="function"><span class="keyword">fun</span> = MyConnect</span></span><br><span class="line"> tEnv.registerFunction(<span class="string">"myConnect"</span>, <span class="function"><span class="keyword">fun</span>)</span></span><br><span class="line"> <span class="keyword">val</span> sql = <span class="string">"SELECT myConnect(a, b) as str FROM tab"</span></span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<h3 id="UDTF"><a href="#UDTF" class="headerlink" title="UDTF"></a>UDTF</h3><ul>
+<li>定义<br>用户想自己编写一个字符串切分的UDTF，我们只需要实现<code>TableFunction#eval()</code>方法即可，简单实现如下：</li>
+</ul>
+<p>ScalarFunction#eval()`</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MySplit</span> <span class="keyword">extends</span> <span class="title">TableFunction</span>[<span class="type">String</span>] </span>&#123;</span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">eval</span></span>(str: <span class="type">String</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (str.contains(<span class="string">"#"</span>))&#123;</span><br><span class="line">      str.split(<span class="string">"#"</span>).foreach(collect)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">eval</span></span>(str: <span class="type">String</span>, prefix: <span class="type">String</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (str.contains(<span class="string">"#"</span>)) &#123;</span><br><span class="line">      str.split(<span class="string">"#"</span>).foreach(s =&gt; collect(prefix + s))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用</li>
+</ul>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">...</span><br><span class="line"><span class="keyword">val</span> <span class="function"><span class="keyword">fun</span> = new <span class="title">MySplit</span><span class="params">()</span></span></span><br><span class="line">tEnv.registerFunction(<span class="string">"mySplit"</span>, <span class="function"><span class="keyword">fun</span>)</span></span><br><span class="line"><span class="keyword">val</span> sql = <span class="string">"SELECT c, s FROM MyTable, LATERAL TABLE(mySplit(c)) AS T(s)"</span></span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<h3 id="UDAF"><a href="#UDAF" class="headerlink" title="UDAF"></a>UDAF</h3><ul>
+<li>定义<br>UDAF 要实现的接口比较多，我们以一个简单的CountAGG为例，做简单实现如下：</li>
+</ul>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/** The initial accumulator for count aggregate function */</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">CountAccumulator</span> <span class="keyword">extends</span> <span class="title">JTuple1</span>[<span class="type">Long</span>] </span>&#123;</span><br><span class="line">  f0 = <span class="number">0</span>L <span class="comment">//count</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">  * User-defined count aggregate function</span></span><br><span class="line"><span class="comment">  */</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyCount</span></span></span><br><span class="line"><span class="class">  <span class="keyword">extends</span> <span class="title">AggregateFunction</span>[<span class="type">JLong</span>, <span class="type">CountAccumulator</span>] </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// process argument is optimized by Calcite.</span></span><br><span class="line">  <span class="comment">// For instance count(42) or count(*) will be optimized to count().</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">accumulate</span></span>(acc: <span class="type">CountAccumulator</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    acc.f0 += <span class="number">1</span>L</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// process argument is optimized by Calcite.</span></span><br><span class="line">  <span class="comment">// For instance count(42) or count(*) will be optimized to count().</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">retract</span></span>(acc: <span class="type">CountAccumulator</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    acc.f0 -= <span class="number">1</span>L</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">accumulate</span></span>(acc: <span class="type">CountAccumulator</span>, value: <span class="type">Any</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (value != <span class="literal">null</span>) &#123;</span><br><span class="line">      acc.f0 += <span class="number">1</span>L</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">retract</span></span>(acc: <span class="type">CountAccumulator</span>, value: <span class="type">Any</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">if</span> (value != <span class="literal">null</span>) &#123;</span><br><span class="line">      acc.f0 -= <span class="number">1</span>L</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getValue</span></span>(acc: <span class="type">CountAccumulator</span>): <span class="type">JLong</span> = &#123;</span><br><span class="line">    acc.f0</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">merge</span></span>(acc: <span class="type">CountAccumulator</span>, its: <span class="type">JIterable</span>[<span class="type">CountAccumulator</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> iter = its.iterator()</span><br><span class="line">    <span class="keyword">while</span> (iter.hasNext) &#123;</span><br><span class="line">      acc.f0 += iter.next().f0</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">createAccumulator</span></span>(): <span class="type">CountAccumulator</span> = &#123;</span><br><span class="line">    <span class="keyword">new</span> <span class="type">CountAccumulator</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">resetAccumulator</span></span>(acc: <span class="type">CountAccumulator</span>): <span class="type">Unit</span> = &#123;</span><br><span class="line">    acc.f0 = <span class="number">0</span>L</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getAccumulatorType</span></span>: <span class="type">TypeInformation</span>[<span class="type">CountAccumulator</span>] = &#123;</span><br><span class="line">    <span class="keyword">new</span> <span class="type">TupleTypeInfo</span>(classOf[<span class="type">CountAccumulator</span>], <span class="type">BasicTypeInfo</span>.<span class="type">LONG_TYPE_INFO</span>)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getResultType</span></span>: <span class="type">TypeInformation</span>[<span class="type">JLong</span>] =</span><br><span class="line">    <span class="type">BasicTypeInfo</span>.<span class="type">LONG_TYPE_INFO</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>使用</li>
+</ul>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">...</span><br><span class="line"><span class="keyword">val</span> <span class="function"><span class="keyword">fun</span> = new <span class="title">MyCount</span><span class="params">()</span></span></span><br><span class="line">tEnv.registerFunction(<span class="string">"myCount"</span>, <span class="function"><span class="keyword">fun</span>)</span></span><br><span class="line"><span class="keyword">val</span> sql = <span class="string">"SELECT myCount(c) FROM MyTable GROUP BY  a"</span></span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<h1 id="Source-amp-Sink"><a href="#Source-amp-Sink" class="headerlink" title="Source&amp;Sink"></a>Source&amp;Sink</h1><p>上面我们介绍了Apache Flink SQL核心算子的语法及语义，这部分将选取Bounded EventTime Tumble Window为例为大家编写一个完整的包括Source和Sink定义的Apache Flink SQL Job。假设有一张淘宝页面访问表(PageAccess_tab)，有地域，用户ID和访问时间。我们需要按不同地域统计每2分钟的淘宝首页的访问量(PV). 具体数据如下：</p>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>userId</th>
+<th>accessTime</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ShangHai</td>
+<td>U0010</td>
+<td>2017-11-11 10:01:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U1001</td>
+<td>2017-11-11 10:01:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U2032</td>
+<td>2017-11-11 10:10:00</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>U1100</td>
+<td>2017-11-11 10:11:00</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>U0011</td>
+<td>2017-11-11 12:10:00</td>
+</tr>
+</tbody></table>
+<h2 id="Source-定义"><a href="#Source-定义" class="headerlink" title="Source 定义"></a>Source 定义</h2><p>自定义Apache Flink Stream Source需要实现<code>StreamTableSource</code>, <code>StreamTableSource</code>中通过<code>StreamExecutionEnvironment</code> 的<code>addSource</code>方法获取<code>DataStream</code>, 所以我们需要自定义一个 <code>SourceFunction</code>, 并且要支持产生WaterMark，也就是要实现<code>DefinedRowtimeAttributes</code>接口。</p>
+<h3 id="Source-Function定义"><a href="#Source-Function定义" class="headerlink" title="Source Function定义"></a>Source Function定义</h3><p>支持接收携带EventTime的数据集合，Either的数据结构，Right表示WaterMark和Left表示数据:</p>
+<figure class="highlight haskell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="type">MySourceFunction</span>[<span class="type">T</span>](<span class="title">dataWithTimestampList</span>: <span class="type">Seq</span>[<span class="type">Either</span>[(<span class="type">Long</span>, <span class="type">T</span>), <span class="type">Long</span>]]) </span></span><br><span class="line"><span class="class">  extends <span class="type">SourceFunction</span>[<span class="type">T</span>] &#123;</span></span><br><span class="line"><span class="class">  override def run(<span class="title">ctx</span>: <span class="type">SourceContext</span>[<span class="type">T</span>]): <span class="type">Unit</span> = &#123;</span></span><br><span class="line"><span class="class">    dataWithTimestampList.foreach &#123;</span></span><br><span class="line"><span class="class">      case <span class="type">Left</span>(<span class="title">t</span>) =&gt; ctx.collectWithTimestamp(<span class="title">t</span>.<span class="title">_2</span>, <span class="title">t</span>.<span class="title">_1</span>)</span></span><br><span class="line"><span class="class">      case <span class="type">Right</span>(<span class="title">w</span>) =&gt; ctx.emitWatermark(<span class="title">new</span> <span class="type">Watermark(w)</span>)</span></span><br><span class="line"><span class="class">    &#125;</span></span><br><span class="line"><span class="class">  &#125;</span></span><br><span class="line"><span class="class">  override def cancel(): <span class="type">Unit</span> = ???</span></span><br><span class="line"><span class="class">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="定义-StreamTableSource"><a href="#定义-StreamTableSource" class="headerlink" title="定义 StreamTableSource"></a>定义 StreamTableSource</h3><p>我们自定义的Source要携带我们测试的数据，以及对应的WaterMark数据，具体如下:</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyTableSource</span> <span class="keyword">extends</span> <span class="title">StreamTableSource</span>[<span class="type">Row</span>] <span class="keyword">with</span> <span class="title">DefinedRowtimeAttributes</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">val</span> fieldNames = <span class="type">Array</span>(<span class="string">"accessTime"</span>, <span class="string">"region"</span>, <span class="string">"userId"</span>)</span><br><span class="line">  <span class="keyword">val</span> schema = <span class="keyword">new</span> <span class="type">TableSchema</span>(fieldNames, <span class="type">Array</span>(<span class="type">Types</span>.<span class="type">SQL_TIMESTAMP</span>, <span class="type">Types</span>.<span class="type">STRING</span>, <span class="type">Types</span>.<span class="type">STRING</span>))</span><br><span class="line">  <span class="keyword">val</span> rowType = <span class="keyword">new</span> <span class="type">RowTypeInfo</span>(</span><br><span class="line">    <span class="type">Array</span>(<span class="type">Types</span>.<span class="type">LONG</span>, <span class="type">Types</span>.<span class="type">STRING</span>, <span class="type">Types</span>.<span class="type">STRING</span>).asInstanceOf[<span class="type">Array</span>[<span class="type">TypeInformation</span>[_]]],</span><br><span class="line">    fieldNames)</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 页面访问表数据 rows with timestamps and watermarks</span></span><br><span class="line">  <span class="keyword">val</span> data = <span class="type">Seq</span>(</span><br><span class="line">    <span class="type">Left</span>(<span class="number">1510365660000</span>L, <span class="type">Row</span>.of(<span class="keyword">new</span> <span class="type">JLong</span>(<span class="number">1510365660000</span>L), <span class="string">"ShangHai"</span>, <span class="string">"U0010"</span>)),</span><br><span class="line">    <span class="type">Right</span>(<span class="number">1510365660000</span>L),</span><br><span class="line">    <span class="type">Left</span>(<span class="number">1510365660000</span>L, <span class="type">Row</span>.of(<span class="keyword">new</span> <span class="type">JLong</span>(<span class="number">1510365660000</span>L), <span class="string">"BeiJing"</span>, <span class="string">"U1001"</span>)),</span><br><span class="line">    <span class="type">Right</span>(<span class="number">1510365660000</span>L),</span><br><span class="line">    <span class="type">Left</span>(<span class="number">1510366200000</span>L, <span class="type">Row</span>.of(<span class="keyword">new</span> <span class="type">JLong</span>(<span class="number">1510366200000</span>L), <span class="string">"BeiJing"</span>, <span class="string">"U2032"</span>)),</span><br><span class="line">    <span class="type">Right</span>(<span class="number">1510366200000</span>L),</span><br><span class="line">    <span class="type">Left</span>(<span class="number">1510366260000</span>L, <span class="type">Row</span>.of(<span class="keyword">new</span> <span class="type">JLong</span>(<span class="number">1510366260000</span>L), <span class="string">"BeiJing"</span>, <span class="string">"U1100"</span>)),</span><br><span class="line">    <span class="type">Right</span>(<span class="number">1510366260000</span>L),</span><br><span class="line">    <span class="type">Left</span>(<span class="number">1510373400000</span>L, <span class="type">Row</span>.of(<span class="keyword">new</span> <span class="type">JLong</span>(<span class="number">1510373400000</span>L), <span class="string">"ShangHai"</span>, <span class="string">"U0011"</span>)),</span><br><span class="line">    <span class="type">Right</span>(<span class="number">1510373400000</span>L)</span><br><span class="line">  )</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getRowtimeAttributeDescriptors</span></span>: util.<span class="type">List</span>[<span class="type">RowtimeAttributeDescriptor</span>] = &#123;</span><br><span class="line">    <span class="type">Collections</span>.singletonList(<span class="keyword">new</span> <span class="type">RowtimeAttributeDescriptor</span>(</span><br><span class="line">      <span class="string">"accessTime"</span>,</span><br><span class="line">      <span class="keyword">new</span> <span class="type">ExistingField</span>(<span class="string">"accessTime"</span>),</span><br><span class="line">      <span class="type">PreserveWatermarks</span>.<span class="type">INSTANCE</span>))</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getDataStream</span></span>(execEnv: <span class="type">StreamExecutionEnvironment</span>): <span class="type">DataStream</span>[<span class="type">Row</span>] = &#123;</span><br><span class="line">    execEnv.addSource(<span class="keyword">new</span> <span class="type">MySourceFunction</span>[<span class="type">Row</span>](data)).setParallelism(<span class="number">1</span>).returns(rowType)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getReturnType</span></span>: <span class="type">TypeInformation</span>[<span class="type">Row</span>] = rowType</span><br><span class="line"></span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getTableSchema</span></span>: <span class="type">TableSchema</span> = schema</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="Sink-定义"><a href="#Sink-定义" class="headerlink" title="Sink 定义"></a>Sink 定义</h2><p>我们简单的将计算结果写入到Apache Flink内置支持的CSVSink中，定义Sink如下：</p>
+<figure class="highlight arduino"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">def getCsvTableSink: TableSink[Row] = &#123;</span><br><span class="line">    val tempFile = <span class="built_in">File</span>.createTempFile(<span class="string">"csv_sink_"</span>, <span class="string">"tem"</span>)</span><br><span class="line">    <span class="comment">// 打印sink的文件路径，方便我们查看运行结果</span></span><br><span class="line">    <span class="built_in">println</span>(<span class="string">"Sink path : "</span> + tempFile)</span><br><span class="line">    <span class="built_in">if</span> (tempFile.<span class="built_in">exists</span>()) &#123;</span><br><span class="line">      tempFile.<span class="keyword">delete</span>()</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">new</span> CsvTableSink(tempFile.getAbsolutePath).configure(</span><br><span class="line">      Array[<span class="keyword">String</span>](<span class="string">"region"</span>, <span class="string">"winStart"</span>, <span class="string">"winEnd"</span>, <span class="string">"pv"</span>),</span><br><span class="line">      Array[TypeInformation[_]](Types.STRING, Types.SQL_TIMESTAMP, Types.SQL_TIMESTAMP, Types.LONG))</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="构建主程序"><a href="#构建主程序" class="headerlink" title="构建主程序"></a>构建主程序</h2><p>主程序包括执行环境的定义，Source/Sink的注册以及统计查SQL的执行，具体如下：</p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">main</span></span>(args: <span class="type">Array</span>[<span class="type">String</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="comment">// Streaming 环境</span></span><br><span class="line">    <span class="keyword">val</span> env = <span class="type">StreamExecutionEnvironment</span>.getExecutionEnvironment</span><br><span class="line">    <span class="keyword">val</span> tEnv = <span class="type">TableEnvironment</span>.getTableEnvironment(env)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 设置EventTime</span></span><br><span class="line">    env.setStreamTimeCharacteristic(<span class="type">TimeCharacteristic</span>.<span class="type">EventTime</span>)</span><br><span class="line"></span><br><span class="line">    <span class="comment">//方便我们查出输出数据</span></span><br><span class="line">    env.setParallelism(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> sourceTableName = <span class="string">"mySource"</span></span><br><span class="line">    <span class="comment">// 创建自定义source数据结构</span></span><br><span class="line">    <span class="keyword">val</span> tableSource = <span class="keyword">new</span> <span class="type">MyTableSource</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> sinkTableName = <span class="string">"csvSink"</span></span><br><span class="line">    <span class="comment">// 创建CSV sink 数据结构</span></span><br><span class="line">    <span class="keyword">val</span> tableSink = getCsvTableSink</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 注册source</span></span><br><span class="line">    tEnv.registerTableSource(sourceTableName, tableSource)</span><br><span class="line">    <span class="comment">// 注册sink</span></span><br><span class="line">    tEnv.registerTableSink(sinkTableName, tableSink)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> sql =</span><br><span class="line">      <span class="string">"SELECT  "</span> +</span><br><span class="line">      <span class="string">"  region, "</span> +</span><br><span class="line">      <span class="string">"  TUMBLE_START(accessTime, INTERVAL '2' MINUTE) AS winStart,"</span> +</span><br><span class="line">      <span class="string">"  TUMBLE_END(accessTime, INTERVAL '2' MINUTE) AS winEnd, COUNT(region) AS pv "</span> +</span><br><span class="line">      <span class="string">" FROM mySource "</span> +</span><br><span class="line">      <span class="string">" GROUP BY TUMBLE(accessTime, INTERVAL '2' MINUTE), region"</span></span><br><span class="line"></span><br><span class="line">    tEnv.sqlQuery(sql).insertInto(sinkTableName);</span><br><span class="line">    env.execute()</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="执行并查看运行结果"><a href="#执行并查看运行结果" class="headerlink" title="执行并查看运行结果"></a>执行并查看运行结果</h2><p>执行主程序后我们会在控制台得到Sink的文件路径，如下：</p>
+<figure class="highlight groovy"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Sink <span class="string">path :</span> <span class="regexp">/var/</span>folders<span class="regexp">/88/</span><span class="number">8</span>n406qmx2z73qvrzc_rbtv_r0000gn<span class="regexp">/T/</span>csv_sink_8025014910735142911tem</span><br></pre></td></tr></table></figure>
+
+<p>Cat 方式查看计算结果，如下：</p>
+<figure class="highlight dns"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">jinchengsunjcdeMacBook-Pro:FlinkTableApiDemo jincheng.sunjc$ cat /var/folders/<span class="number">88</span>/<span class="number">8</span>n406qmx2z73qvrzc_rbtv_r0000gn/T/csv_sink_8025014910735142911tem</span><br><span class="line">ShangHai,<span class="number">2017-11-11</span> <span class="number">02:00:00.0</span>,<span class="number">2017-11-11</span> <span class="number">02:02:00.0</span>,<span class="number">1</span></span><br><span class="line">BeiJing,<span class="number">2017-11-11</span> <span class="number">02:00:00.0</span>,<span class="number">2017-11-11</span> <span class="number">02:02:00.0</span>,<span class="number">1</span></span><br><span class="line">BeiJing,<span class="number">2017-11-11</span> <span class="number">02:10:00.0</span>,<span class="number">2017-11-11</span> <span class="number">02:12:00.0</span>,<span class="number">2</span></span><br><span class="line">ShangHai,<span class="number">2017-11-11</span> <span class="number">04:10:00.0</span>,<span class="number">2017-11-11</span> <span class="number">04:12:00.0</span>,<span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+<p>表格化如上结果：</p>
+<table>
+<thead>
+<tr>
+<th>region</th>
+<th>winStart</th>
+<th>winEnd</th>
+<th>pv</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BeiJing</td>
+<td>2017-11-11 02:00:00.0</td>
+<td>2017-11-11 02:02:00.0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>BeiJing</td>
+<td>2017-11-11 02:10:00.0</td>
+<td>2017-11-11 02:12:00.0</td>
+<td>2</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 02:00:00.0</td>
+<td>2017-11-11 02:02:00.0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>ShangHai</td>
+<td>2017-11-11 04:10:00.0</td>
+<td>2017-11-11 04:12:00.0</td>
+<td>1</td>
+</tr>
+</tbody></table>
+<p>上面这个端到端的完整示例也可以应用到本篇前面介绍的其他算子示例中，只是大家根据Source和Sink的Schema不同来进行相应的构建即可！</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>本篇概要的介绍了Apache Flink SQL 大部分核心功能，并附带了具体的测试数据和测试程序，最后以一个End-to-End的示例展示了如何编写Apache Flink SQL的Job收尾。</p>
+</div><div><ul class="post-copyright"><li class="post-copyright-author"><strong>本文作者：</strong>gaojintao999@163.com</li><li class="post-copyright-link"><strong>本文链接：</strong><a href="/2018/11/18/FlinkSQL深度解析/">https://gjtmaster.github.io/2018/11/18/FlinkSQL深度解析/</a></li><li class="post-copyright-license"><strong>版权声明：</strong>The author owns the copyright, please indicate the source reproduced.</li></ul></div><br><div class="tags"><a href="/tags/Flink/">Flink</a><a href="/tags/实时计算/">实时计算</a><a href="/tags/FlinkSQL/">FlinkSQL</a></div><div class="post-nav"><a class="pre" href="/2019/08/15/Flink 进阶：Runtime 核心机制剖析/">Flink 进阶：Runtime 核心机制剖析</a><a class="next" href="/2018/11/16/Flink on Yarn HA/">Flink On Yarn HA</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><div class="search-form"><input id="local-search-input" placeholder="Search" type="text" name="q" results="0"><div id="local-search-result"></div></div></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/JVM/">JVM</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/实时计算框架/">实时计算框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据存储格式/">数据存储格式</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据库/">数据库</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据的导入导出/">数据的导入导出</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/日志框架/">日志框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/消息中间件/">消息中间件</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/Flink/" style="font-size: 15px;">Flink</a> <a href="/tags/Yarn/" style="font-size: 15px;">Yarn</a> <a href="/tags/Flink-on-Yarn/" style="font-size: 15px;">Flink on Yarn</a> <a href="/tags/实时计算/" style="font-size: 15px;">实时计算</a> <a href="/tags/Oracle/" style="font-size: 15px;">Oracle</a> <a href="/tags/FlinkSQL/" style="font-size: 15px;">FlinkSQL</a> <a href="/tags/Logback/" style="font-size: 15px;">Logback</a> <a href="/tags/Kafka/" style="font-size: 15px;">Kafka</a> <a href="/tags/消息中间件/" style="font-size: 15px;">消息中间件</a> <a href="/tags/Json/" style="font-size: 15px;">Json</a> <a href="/tags/JVM/" style="font-size: 15px;">JVM</a> <a href="/tags/内存回收/" style="font-size: 15px;">内存回收</a> <a href="/tags/ogg/" style="font-size: 15px;">ogg</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2019/08/19/Flink 进阶：Time 深度解析/">Flink 进阶：Time 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/19/Flink 进阶：Flink Connector详解/">Flink 进阶：Flink Connector详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/16/Flink 进阶：增量 Checkpoint 详解/">Flink 进阶：增量 Checkpoint 详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/15/Flink 进阶：Runtime 核心机制剖析/">Flink 进阶：Runtime 核心机制剖析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/18/FlinkSQL深度解析/">Flink SQL 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/16/Flink on Yarn HA/">Flink On Yarn HA</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink使用Logback作为日志框架的相关配置/">Flink使用Logback作为日志框架的相关配置</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink On Yan集群部署/">Flink On Yarn集群部署</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink1.7.1与Kafka0.11.0.1/">Flink1.7.1与Kafka0.11.0.1</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/26/Kafka EOS 之事务性实现/">Kafka EOS 之事务性实现</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://matt33.com/" title="Matt's Blog" target="_blank">Matt's Blog</a><ul></ul><a href="https://www.haomwei.com/technology/maupassant-hexo.html" title="Maupassant's usage" target="_blank">Maupassant's usage</a><ul></ul><a href="https://www.jianshu.com/p/f4332764e8bd" title="hexo's usage" target="_blank">hexo's usage</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2019 <a href="/." rel="nofollow">Joker's Blog.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css"><script type="text/javascript" src="/js/search.js?v=0.0.0"></script><script>var search_path = 'search.xml';
+if (search_path.length == 0) {
+   search_path = 'search.xml';
+}
+var path = '/' + search_path;
+searchFunc(path, 'local-search-input', 'local-search-result');
+</script><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>

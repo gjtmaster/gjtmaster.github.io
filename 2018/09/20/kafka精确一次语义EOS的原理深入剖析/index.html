@@ -1,0 +1,165 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.9.0"><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="心有多大，舞台就有多大！"><title>kafka精确一次语义EOS的原理深入剖析 | Joker's Blog</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/normalize/8.0.1/normalize.min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//lib.baomitu.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//lib.baomitu.com/jquery/3.4.0/jquery.min.js"></script><link rel="icon" mask sizes="any" href="/favicon.ico"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><link rel="alternate" type="application/atom+xml" href="/atom.xml"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">kafka精确一次语义EOS的原理深入剖析</h1><a id="logo" href="/.">Joker's Blog</a><p class="description">高金涛</p></div><div id="nav-menu"><a class="current" href="/."><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 归档</i></a><a href="/about/"><i class="fa fa-user"> 关于</i></a><a href="/history/"><i class="fa fa-history"> 历史</i></a><a href="/atom.xml"><i class="fa fa-rss"> 订阅</i></a></div></div><div class="pure-g" id="layout"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">kafka精确一次语义EOS的原理深入剖析</h1><div class="post-meta">Sep 20, 2018<span> | </span><span class="category"><a href="/categories/消息中间件/">消息中间件</a></span></div><div class="clear"><div class="toc-article" id="toc"><div class="toc-title">文章目录</div><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Kafka-0-11-0-0版本的逆天之作"><span class="toc-number">1.</span> <span class="toc-text">Kafka 0.11.0.0版本的逆天之作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#故障类型"><span class="toc-number">2.</span> <span class="toc-text">故障类型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Producer幂等性处理机制"><span class="toc-number">3.</span> <span class="toc-text">Producer幂等性处理机制</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#事务：跨分区原子写入"><span class="toc-number">4.</span> <span class="toc-text">事务：跨分区原子写入</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#消费端的事务支持"><span class="toc-number">5.</span> <span class="toc-text">消费端的事务支持</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#消费端精确到一次语义实现"><span class="toc-number">6.</span> <span class="toc-text">消费端精确到一次语义实现</span></a></li></ol></div></div><div class="post-content"><h2 id="Kafka-0-11-0-0版本的逆天之作"><a href="#Kafka-0-11-0-0版本的逆天之作" class="headerlink" title="Kafka 0.11.0.0版本的逆天之作"></a>Kafka 0.11.0.0版本的逆天之作</h2><ul>
+<li>0.11.0.0版本之前默认提供at least once语义，想象这样一种场景，分区的Leader副本所在的Broker成功的将消息写入本地磁盘，然后broker将发送响应给producer，此时假设网络出现故障导致该响应没有发送成功。此种情况下，Producer将认为消息发送请求失败，从而开启重试机制。若此时网络恢复正常，那么同一条消息将会被写入两次。</li>
+<li>基于上述案例：0.11.0.0版本提供幂等性：每个分区中精确一次且有序</li>
+<li>0.11.0.0版本提供事务：跨分区原子写入机制。</li>
+</ul>
+<h2 id="故障类型"><a href="#故障类型" class="headerlink" title="故障类型"></a>故障类型</h2><ul>
+<li>broker可能故障：Kafka是一个高可用、持久化的系统，每一条写入一个分区的消息都会被持久化并且多副本备份（假设有n个副本）。所以，Kafka可以容忍n-1个broker故障，意味着一个分区只要至少有一个broker可用，分区就可用。Kafka的副本协议保证了只要消息被成功写入了主副本，它就会被复制到其他所有的可用副本（ISR）。</li>
+<li>producer到broker的RPC调用可能失败：Kafka的持久性依赖于生产者接收broker的ack响应。没有接收成功ack不代表生产请求本身失败了。broker可能在写入消息后，发送ack给生产者的时候挂了。甚至broker也可能在写入消息前就挂了。由于生产者没有办法知道错误是什么造成的，所以它就只能认为消息没写入成功，并且会重试发送。在一些情况下，这会造成同样的消息在Kafka分区日志中重复，进而造成消费端多次收到这条消息。</li>
+<li>客户端可能会故障：精确一次交付也必须考虑客户端故障。但是我们如何知道一个客户端已经故障而不是暂时和brokers断开，或者经历一个程序短暂的暂停，区分永久性故障和临时故障是很重要的，为了正确性，broker应该丢弃僵住的生产这发送来的消息，同样，也应该不向已经僵住的消费者发送消息。一旦一个新的客户端实例启动，它应该能够从失败的实例留下的任何状态中恢复，从一个安全点开始处理。这意味着，消费的偏移量必须始终与生产的输出保持同步。</li>
+</ul>
+<h2 id="Producer幂等性处理机制"><a href="#Producer幂等性处理机制" class="headerlink" title="Producer幂等性处理机制"></a>Producer幂等性处理机制</h2><ul>
+<li>如果出现导致生产者重试的错误，同样的消息，仍由同样的生产者发送多次，将只被写到kafka broker的日志中一次。对于单个分区，幂等生产者不会因为生产者或broker故障而发送多条重复消息。</li>
+<li>kafka保存序列号仅仅需要几个额外的字段，因此这种机制的开销非常低。</li>
+<li>除了序列号，kafka会为每个Producer实例分配一个Producer id（PID）,每一条消息都会有序列号，并严格递增顺序。若发送的消息的序列号小于或者等于broker端保存的序列号，那么broker会拒绝这条消息的写入操作。</li>
+<li>注意的是：当前的设计只能保证单个producer实例的EOS语义，无法实现多个Producer实例一块提供EOS语义。</li>
+<li>想要开启这个特性，获得每个分区内的精确一次语义，也就是说没有重复，没有丢失，并且有序的语义，只需要设置producer配置中的”enable.idempotence=true”。</li>
+</ul>
+<h2 id="事务：跨分区原子写入"><a href="#事务：跨分区原子写入" class="headerlink" title="事务：跨分区原子写入"></a>事务：跨分区原子写入</h2><ul>
+<li><p>事务：跨分区原子写入</p>
+<p>将允许一个生产者发送一批到不同分区的消息，这些消息要么全部对任何一个消费者可见，要么对任何一个消费者都不可见。这个特性也允许你在一个事务中处理消费数据和提交消费偏移量，从而实现端到端的精确一次语义。</p>
+</li>
+<li><p>主要针对消息经过Partioner分区器到多个分区的情况。</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="selector-tag">producer</span><span class="selector-class">.initTransactions</span>();</span><br><span class="line"><span class="selector-tag">try</span> &#123;</span><br><span class="line">  <span class="selector-tag">producer</span><span class="selector-class">.beginTransaction</span>();</span><br><span class="line">  <span class="selector-tag">producer</span><span class="selector-class">.send</span>(record1);</span><br><span class="line">  <span class="selector-tag">producer</span><span class="selector-class">.send</span>(record2);</span><br><span class="line">  <span class="selector-tag">producer</span><span class="selector-class">.commitTransaction</span>();</span><br><span class="line">&#125; <span class="selector-tag">catch</span>(ProducerFencedException e) &#123;</span><br><span class="line">  <span class="selector-tag">producer</span><span class="selector-class">.close</span>();</span><br><span class="line">&#125; <span class="selector-tag">catch</span>(KafkaException e) &#123;</span><br><span class="line">  <span class="selector-tag">producer</span><span class="selector-class">.abortTransaction</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h2 id="消费端的事务支持"><a href="#消费端的事务支持" class="headerlink" title="消费端的事务支持"></a>消费端的事务支持</h2><ul>
+<li><p>在消费者方面，有两种选择来读取事务性消息，通过隔离等级“isolation.level”消费者配置表示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">read_commited：除了读取不属于事务的消息之外，还可以读取事务提交后的消息。</span><br><span class="line">read_uncommited：按照偏移位置读取所有消息，而不用等事务提交。这个选项类似Kafka消费者的当前语义。</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>为了使用事务，需要配置消费者使用正确的隔离等级。</p>
+</li>
+<li><p>使用新版生产者，并且将生产者的“transactional . id”配置项设置为某个唯一ID。 需要此唯一ID来提供跨越应用程序重新启动的事务状态的连续性。</p>
+</li>
+</ul>
+<h2 id="消费端精确到一次语义实现"><a href="#消费端精确到一次语义实现" class="headerlink" title="消费端精确到一次语义实现"></a>消费端精确到一次语义实现</h2><p>消费端精确到一次语义实现：consumer通过subscribe方法注册到kafka，精确一次的语义要求必须手动管理offset，按照下述步骤进行设置：</p>
+<ul>
+<li><p>1.设置enable.auto.commit = false;</p>
+</li>
+<li><p>2.处理完消息之后不要手动提交offset，</p>
+</li>
+<li><p>3.通过subscribe方法将consumer注册到某个特定topic，</p>
+</li>
+<li><p>4.实现ConsumerRebalanceListener接口和consumer.seek(topicPartition,offset)方法（读取特定topic和partition的offset）</p>
+</li>
+<li><p>5.将offset和消息一块存储，确保原子性，推荐使用事务机制。</p>
+<figure class="highlight cs"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">ExactlyOnceDynamicConsumer</span> &#123;</span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> OffsetManager offsetManager = <span class="keyword">new</span> OffsetManager(<span class="string">"storage2"</span>);</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span>(<span class="params">String[] str</span>) throws InterruptedException</span> &#123;</span><br><span class="line"></span><br><span class="line">    System.<span class="keyword">out</span>.println(<span class="string">"Starting ManualOffsetGuaranteedExactlyOnceReadingDynamicallyBalancedPartitionConsumer ..."</span>);</span><br><span class="line"></span><br><span class="line">    readMessages();</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>  private static void readMessages() throws InterruptedException {</p>
+<pre><code>KafkaConsumer&lt;String, String&gt; consumer = createConsumer();
+
+// Manually controlling offset but register consumer to topics to get dynamically assigned partitions.
+// Inside MyConsumerRebalancerListener use consumer.seek(topicPartition,offset) to control offset
+
+consumer.subscribe(Arrays.asList(&quot;normal-topic&quot;), new MyConsumerRebalancerListener(consumer));
+
+processRecords(consumer);</code></pre><p>  }</p>
+</li>
+</ul>
+<pre><code>private static KafkaConsumer&lt;String, String&gt; createConsumer() {
+    Properties props = new Properties();
+    props.put(&quot;bootstrap.servers&quot;, &quot;localhost:9092&quot;);
+    String consumeGroup = &quot;cg3&quot;;
+
+    props.put(&quot;group.id&quot;, consumeGroup);
+
+    props.put(&quot;enable.auto.commit&quot;, &quot;false&quot;);
+    props.put(&quot;heartbeat.interval.ms&quot;, &quot;2000&quot;);
+    props.put(&quot;session.timeout.ms&quot;, &quot;6001&quot;);
+
+    * Control maximum data on each poll, make sure this value is bigger than the maximum single record size
+    props.put(&quot;max.partition.fetch.bytes&quot;, &quot;140&quot;);
+
+    props.put(&quot;key.deserializer&quot;, &quot;org.apache.kafka.common.serialization.StringDeserializer&quot;);
+    props.put(&quot;value.deserializer&quot;, &quot;org.apache.kafka.common.serialization.StringDeserializer&quot;);
+    return new KafkaConsumer&lt;String, String&gt;(props);
+}
+
+private static void processRecords(KafkaConsumer&lt;String, String&gt; consumer) {
+
+    while (true) {
+
+        ConsumerRecords&lt;String, String&gt; records = consumer.poll(100);
+
+        for (ConsumerRecord&lt;String, String&gt; record : records) {
+
+            System.out.printf(&quot;offset = %d, key = %s, value = %s\n&quot;, record.offset(), record.key(), record.value());
+            offsetManager.saveOffsetInExternalStore(record.topic(), record.partition(), record.offset());
+
+        }
+    }
+}
+
+public class MyConsumerRebalancerListener implements org.apache.kafka.clients.consumer.ConsumerRebalanceListener {
+
+private OffsetManager offsetManager = new OffsetManager(&quot;storage2&quot;);
+private Consumer&lt;String, String&gt; consumer;
+
+public MyConsumerRebalancerListener(Consumer&lt;String, String&gt; consumer) {
+    this.consumer = consumer;
+}
+
+public void onPartitionsRevoked(Collection&lt;TopicPartition&gt; partitions) {
+
+    for (TopicPartition partition : partitions) {
+
+        offsetManager.saveOffsetInExternalStore(partition.topic(), partition.partition(), consumer.position(partition));
+    }
+}
+
+public void onPartitionsAssigned(Collection&lt;TopicPartition&gt; partitions) {
+
+
+    for (TopicPartition partition : partitions) {
+        consumer.seek(partition, offsetManager.readOffsetFromExternalStore(partition.topic(), partition.partition()));
+    }
+}
+
+public class OffsetManager {
+  private String storagePrefix;
+  public OffsetManager(String storagePrefix) {
+      this.storagePrefix = storagePrefix;
+  }
+
+  void saveOffsetInExternalStore(String topic, int partition, long offset) {
+
+      try {
+
+          FileWriter writer = new FileWriter(storageName(topic, partition), false);
+
+          BufferedWriter bufferedWriter = new BufferedWriter(writer);
+          bufferedWriter.write(offset + &quot;&quot;);
+          bufferedWriter.flush();
+          bufferedWriter.close();
+
+      } catch (Exception e) {
+          e.printStackTrace();
+          throw new RuntimeException(e);
+      }
+  }
+
+  long readOffsetFromExternalStore(String topic, int partition) {
+
+      try {
+
+          Stream&lt;String&gt; stream = Files.lines(Paths.get(storageName(topic, partition)));
+
+          return Long.parseLong(stream.collect(Collectors.toList()).get(0)) + 1;
+
+      } catch (Exception e) {
+          e.printStackTrace();
+      }
+
+      return 0;
+  }
+
+  private String storageName(String topic, int partition) {
+      return storagePrefix + &quot;-&quot; + topic + &quot;-&quot; + partition;
+  }</code></pre></div><div><ul class="post-copyright"><li class="post-copyright-author"><strong>本文作者：</strong>gaojintao999@163.com</li><li class="post-copyright-link"><strong>本文链接：</strong><a href="/2018/09/20/kafka精确一次语义EOS的原理深入剖析/">https://gjtmaster.github.io/2018/09/20/kafka精确一次语义EOS的原理深入剖析/</a></li><li class="post-copyright-license"><strong>版权声明：</strong>The author owns the copyright, please indicate the source reproduced.</li></ul></div><br><div class="tags"><a href="/tags/Kafka/">Kafka</a><a href="/tags/消息中间件/">消息中间件</a></div><div class="post-nav"><a class="pre" href="/2018/09/21/kafka集群Controller竞选与责任设计思路架构详解/">kafka集群Controller竞选与责任设计思路架构详解</a><a class="next" href="/2018/09/20/kafka集群Broker端基于Reactor模式请求处理流程/">kafka集群Broker端基于Reactor模式请求处理流程</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><div class="search-form"><input id="local-search-input" placeholder="Search" type="text" name="q" results="0"><div id="local-search-result"></div></div></div><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/JVM/">JVM</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/实时计算框架/">实时计算框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据存储格式/">数据存储格式</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据库/">数据库</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/数据的导入导出/">数据的导入导出</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/日志框架/">日志框架</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/消息中间件/">消息中间件</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-star-o"> 标签</i></div><div class="tagcloud"><a href="/tags/Flink/" style="font-size: 15px;">Flink</a> <a href="/tags/Yarn/" style="font-size: 15px;">Yarn</a> <a href="/tags/Flink-on-Yarn/" style="font-size: 15px;">Flink on Yarn</a> <a href="/tags/实时计算/" style="font-size: 15px;">实时计算</a> <a href="/tags/Oracle/" style="font-size: 15px;">Oracle</a> <a href="/tags/FlinkSQL/" style="font-size: 15px;">FlinkSQL</a> <a href="/tags/Logback/" style="font-size: 15px;">Logback</a> <a href="/tags/Kafka/" style="font-size: 15px;">Kafka</a> <a href="/tags/消息中间件/" style="font-size: 15px;">消息中间件</a> <a href="/tags/Json/" style="font-size: 15px;">Json</a> <a href="/tags/JVM/" style="font-size: 15px;">JVM</a> <a href="/tags/内存回收/" style="font-size: 15px;">内存回收</a> <a href="/tags/ogg/" style="font-size: 15px;">ogg</a></div></div><div class="widget"><div class="widget-title"><i class="fa fa-file-o"> 最近文章</i></div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2019/08/19/Flink 进阶：Time 深度解析/">Flink 进阶：Time 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/19/Flink 进阶：Flink Connector详解/">Flink 进阶：Flink Connector详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/16/Flink 进阶：增量 Checkpoint 详解/">Flink 进阶：增量 Checkpoint 详解</a></li><li class="post-list-item"><a class="post-list-link" href="/2019/08/15/Flink 进阶：Runtime 核心机制剖析/">Flink 进阶：Runtime 核心机制剖析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/18/FlinkSQL深度解析/">Flink SQL 深度解析</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/16/Flink on Yarn HA/">Flink On Yarn HA</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink使用Logback作为日志框架的相关配置/">Flink使用Logback作为日志框架的相关配置</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink On Yan集群部署/">Flink On Yarn集群部署</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/11/15/Flink1.7.1与Kafka0.11.0.1/">Flink1.7.1与Kafka0.11.0.1</a></li><li class="post-list-item"><a class="post-list-link" href="/2018/09/26/Kafka EOS 之事务性实现/">Kafka EOS 之事务性实现</a></li></ul></div><div class="widget"><div class="widget-title"><i class="fa fa-external-link"> 友情链接</i></div><ul></ul><a href="https://matt33.com/" title="Matt's Blog" target="_blank">Matt's Blog</a><ul></ul><a href="https://www.haomwei.com/technology/maupassant-hexo.html" title="Maupassant's usage" target="_blank">Maupassant's usage</a><ul></ul><a href="https://www.jianshu.com/p/f4332764e8bd" title="hexo's usage" target="_blank">hexo's usage</a></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2019 <a href="/." rel="nofollow">Joker's Blog.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a class="show" id="rocket" href="#top"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css"><script type="text/javascript" src="/js/search.js?v=0.0.0"></script><script>var search_path = 'search.xml';
+if (search_path.length == 0) {
+   search_path = 'search.xml';
+}
+var path = '/' + search_path;
+searchFunc(path, 'local-search-input', 'local-search-result');
+</script><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
