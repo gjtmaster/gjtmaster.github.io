@@ -210,9 +210,9 @@
     
       <category term="Flink" scheme="https://gjtmaster.github.io/tags/Flink/"/>
     
-      <category term="实时计算" scheme="https://gjtmaster.github.io/tags/%E5%AE%9E%E6%97%B6%E8%AE%A1%E7%AE%97/"/>
-    
       <category term="Yarn" scheme="https://gjtmaster.github.io/tags/Yarn/"/>
+    
+      <category term="实时计算" scheme="https://gjtmaster.github.io/tags/%E5%AE%9E%E6%97%B6%E8%AE%A1%E7%AE%97/"/>
     
   </entry>
   
